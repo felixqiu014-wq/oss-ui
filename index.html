@@ -36,15 +36,15 @@
           </div>
           <div class="topbar-actions">
             <button id="marketButton" class="secondary-button" type="button">安装包市场</button>
-            <button id="openProjectModalButton" class="secondary-button" type="button">新增项目</button>
+            <button id="openProjectModalButton" class="primary-button" type="button">新增项目</button>
             <button id="exportProjectTimelineButton" class="secondary-button hidden" type="button">导出项目时间线</button>
-            <button id="shopForProjectTopButton" class="secondary-button hidden" type="button">选购安装包</button>
+            <button id="shopForProjectTopButton" class="primary-button hidden" type="button">选购安装包</button>
             <button id="cartButton" class="secondary-button cart-button hidden" type="button">
               购物车
               <span id="cartCount" class="cart-count">0</span>
             </button>
             <button id="backToProjectsButton" class="secondary-button hidden" type="button">返回项目列表</button>
-            <button id="lockButton" class="secondary-button" type="button">锁定</button>
+            <button id="lockButton" class="danger-button" type="button">锁定</button>
           </div>
         </header>
 
@@ -228,6 +228,25 @@
               <button type="submit">保存文档</button>
             </div>
           </form>
+        </section>
+      </div>
+
+      <div id="operationDeleteDialog" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="operationDeleteTitle">
+        <section class="confirm-modal">
+          <div class="modal-head">
+            <div>
+              <p id="operationDeleteEyebrow" class="eyebrow">delete operation</p>
+              <h2 id="operationDeleteTitle">删除这条操作？</h2>
+            </div>
+            <button id="closeOperationDeleteButton" class="icon-button" type="button" aria-label="关闭删除确认弹窗">×</button>
+          </div>
+          <div class="confirm-body">
+            <p id="operationDeleteMessage">删除后不可恢复，请确认是否继续。</p>
+          </div>
+          <div class="modal-actions confirm-actions">
+            <button id="cancelOperationDeleteButton" class="secondary-button" type="button">取消</button>
+            <button id="confirmOperationDeleteButton" class="danger-button" type="button">确认删除</button>
+          </div>
         </section>
       </div>
     </main>

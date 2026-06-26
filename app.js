@@ -47,6 +47,13 @@
     operationDocContentInput: document.getElementById("operationDocContentInput"),
     closeOperationDocButton: document.getElementById("closeOperationDocButton"),
     cancelOperationDocButton: document.getElementById("cancelOperationDocButton"),
+    operationDeleteDialog: document.getElementById("operationDeleteDialog"),
+    operationDeleteEyebrow: document.getElementById("operationDeleteEyebrow"),
+    operationDeleteTitle: document.getElementById("operationDeleteTitle"),
+    operationDeleteMessage: document.getElementById("operationDeleteMessage"),
+    closeOperationDeleteButton: document.getElementById("closeOperationDeleteButton"),
+    cancelOperationDeleteButton: document.getElementById("cancelOperationDeleteButton"),
+    confirmOperationDeleteButton: document.getElementById("confirmOperationDeleteButton"),
     appsTabs: document.getElementById("appsTabs"),
     middlewareTabs: document.getElementById("middlewareTabs"),
     packageTitle: document.getElementById("packageTitle"),
@@ -79,6 +86,7 @@
   let packageReturnPage = "projects";
   let selectedDetailPackageName = "";
   let pendingOperationTarget = null;
+  let pendingDeleteTarget = null;
   const expandedGroups = new Set(["base"]);
   const customSelects = new Map();
   const operationEvents = [
@@ -151,6 +159,7 @@
     closeCartDialog();
     closeProjectModal();
     closeOperationDocDialog();
+    closeOperationDeleteDialog();
     els.projectsPage.classList.add("hidden");
     els.projectDetailPage.classList.add("hidden");
     els.packagePage.classList.remove("hidden");
@@ -174,6 +183,7 @@
     closeCartDialog();
     closeProjectModal();
     closeOperationDocDialog();
+    closeOperationDeleteDialog();
     els.packagePage.classList.add("hidden");
     els.projectDetailPage.classList.add("hidden");
     els.projectsPage.classList.remove("hidden");
@@ -203,6 +213,7 @@
     closeCartDialog();
     closeProjectModal();
     closeOperationDocDialog();
+    closeOperationDeleteDialog();
     currentProjectId = project.id;
     els.packagePage.classList.add("hidden");
     els.projectsPage.classList.add("hidden");
@@ -236,6 +247,11 @@
   function closeOperationDocDialog() {
     els.operationDocDialog.classList.add("hidden");
     pendingOperationTarget = null;
+  }
+
+  function closeOperationDeleteDialog() {
+    els.operationDeleteDialog.classList.add("hidden");
+    pendingDeleteTarget = null;
   }
 
   function closeEventDropdowns() {
@@ -333,13 +349,6 @@
     link.click();
     link.remove();
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
-  }
-
-  function exportProjectRecord(project, record) {
-    const timestamp = formatDateTimeForFileName(record.createdAt || new Date().toISOString());
-    const filename = sanitizeFileName(`${project.name}-${record.title || "安装包操作记录"}-${timestamp}.md`);
-    const markdown = buildRecordMarkdown(project, record);
-    downloadTextFile(filename, markdown, "text/markdown;charset=utf-8");
   }
 
   function buildOperationMarkdown(operation, level = "###") {
@@ -673,11 +682,19 @@
           <span>
             <strong>${escapeHtml(project.name)}</strong>
             <small>负责人：${escapeHtml(project.owner)}</small>
+            <small>创建时间：${escapeHtml(formatDateTime(project.createdAt || new Date().toISOString()))}</small>
           </span>
           <span class="record-count">${project.records.length} 条记录</span>
         </div>
         <div class="project-summary-actions">
           <button class="secondary-button" type="button" data-project-detail="${escapeAttribute(project.id)}">详情</button>
+          <button
+            class="text-button danger project-delete-button"
+            type="button"
+            aria-label="删除项目 ${escapeAttribute(project.name)}"
+            title="删除项目"
+            data-delete-project="${escapeAttribute(project.id)}"
+          ><span class="trash-icon" aria-hidden="true"></span></button>
         </div>
       </article>
     `).join("");
@@ -685,6 +702,13 @@
     for (const button of els.projectsList.querySelectorAll("[data-project-detail]")) {
       button.addEventListener("click", () => {
         showProjectDetailPage(button.dataset.projectDetail);
+      });
+    }
+    for (const button of els.projectsList.querySelectorAll("[data-delete-project]")) {
+      button.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openProjectDeleteDialog(button.dataset.deleteProject);
       });
     }
   }
@@ -784,6 +808,65 @@
     els.operationDocNameInput.focus();
   }
 
+  function operationDisplayName(operation) {
+    if (!operation) return "这条操作";
+    if (operation.type === "document") return textValue(operation.title, "未命名操作文档");
+    return textValue(operation.label, "操作事件");
+  }
+
+  function openOperationDeleteDialog(target, operationId) {
+    const resolved = findOperationTarget(target);
+    if (!resolved) return;
+    const operation = resolved.operations.find((item) => item.id === operationId);
+    if (!operation) return;
+    pendingDeleteTarget = { kind: "operation", ...target, operationId };
+    els.operationDeleteEyebrow.textContent = "delete operation";
+    els.operationDeleteTitle.textContent = "删除这条操作？";
+    els.operationDeleteMessage.textContent = `即将删除「${operationDisplayName(operation)}」，删除后不可恢复。`;
+    els.operationDeleteDialog.classList.remove("hidden");
+    els.confirmOperationDeleteButton.focus();
+  }
+
+  function openProjectDeleteDialog(projectId) {
+    const project = projectById(projectId);
+    if (!project) return;
+    pendingDeleteTarget = { kind: "project", projectId };
+    els.operationDeleteEyebrow.textContent = "delete project";
+    els.operationDeleteTitle.textContent = "删除这个项目？";
+    els.operationDeleteMessage.textContent = `即将删除项目「${textValue(project.name, "未命名项目")}」及其所有时间线记录，删除后不可恢复。`;
+    els.operationDeleteDialog.classList.remove("hidden");
+    els.confirmOperationDeleteButton.focus();
+  }
+
+  function deletePendingTarget() {
+    if (!pendingDeleteTarget) return;
+    if (pendingDeleteTarget.kind === "project") {
+      projects = projects.filter((project) => project.id !== pendingDeleteTarget.projectId);
+      if (currentProjectId === pendingDeleteTarget.projectId) {
+        currentProjectId = "";
+      }
+      if (marketTargetProjectId === pendingDeleteTarget.projectId) {
+        marketTargetProjectId = "";
+      }
+      saveProjects();
+      closeOperationDeleteDialog();
+      renderProjects();
+      return;
+    }
+    const resolved = findOperationTarget(pendingDeleteTarget);
+    if (!resolved) return;
+    resolved.operations = resolved.operations.filter((item) => item.id !== pendingDeleteTarget.operationId);
+    if (pendingDeleteTarget.scope === "project") {
+      resolved.project.operations = resolved.operations;
+    }
+    if (pendingDeleteTarget.scope === "package") {
+      resolved.project.packageOperations[pendingDeleteTarget.packageName] = resolved.operations;
+    }
+    saveProjects();
+    closeOperationDeleteDialog();
+    renderProjectDetail(resolved.project);
+  }
+
   function addOperationEvent(target, eventType) {
     const resolved = findOperationTarget(target);
     const eventOption = operationEvents.find((item) => item.type === eventType);
@@ -815,10 +898,10 @@
     const targetJson = escapeAttribute(JSON.stringify(target));
     return `
       <div class="operation-actions" data-operation-target="${targetJson}">
-        <button class="secondary-button compact-button" type="button" data-add-operation-doc>添加操作文档</button>
+        <button class="secondary-button compact-button" type="button" data-add-operation-doc>添加空文档</button>
         <div class="event-dropdown">
-          <button class="secondary-button compact-button event-dropdown-trigger" type="button" data-event-menu-trigger aria-expanded="false">
-            添加事件
+          <button class="primary-button compact-button event-dropdown-trigger" type="button" data-event-menu-trigger aria-expanded="false">
+            添加事件文档
             <span class="event-dropdown-icon" aria-hidden="true">▾</span>
           </button>
           <div class="event-dropdown-menu" role="menu">
@@ -842,21 +925,39 @@
           if (operation.type === "document") {
             const summary = markdownSummary(operation.content);
             return `
-              <button class="operation-entry document" type="button" data-open-operation-doc="${escapeAttribute(operation.id)}">
-                <span class="operation-entry-kind">文档</span>
-                <strong>${escapeHtml(textValue(operation.title, "未命名操作文档"))}</strong>
-                <small>${escapeHtml(formatDateTime(operation.createdAt))}</small>
-                ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
-              </button>
+              <div class="operation-entry document">
+                <button class="operation-entry-main" type="button" data-open-operation-doc="${escapeAttribute(operation.id)}">
+                  <span class="operation-entry-kind">文档</span>
+                  <strong>${escapeHtml(textValue(operation.title, "未命名操作文档"))}</strong>
+                  <small>${escapeHtml(formatDateTime(operation.createdAt))}</small>
+                  ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
+                </button>
+                <button
+                  class="text-button danger operation-delete-button"
+                  type="button"
+                  aria-label="删除操作文档"
+                  title="删除操作文档"
+                  data-delete-operation="${escapeAttribute(operation.id)}"
+                ><span class="trash-icon" aria-hidden="true"></span></button>
+              </div>
             `;
           }
           return `
-            <button class="operation-entry event" type="button" data-open-operation-doc="${escapeAttribute(operation.id)}">
-              <span class="operation-entry-kind">事件</span>
-              <strong>${escapeHtml(operation.label || "操作事件")}</strong>
-              <small>${escapeHtml(formatDateTime(operation.createdAt))}</small>
-              ${operation.content ? `<p>${escapeHtml(markdownSummary(operation.content))}</p>` : ""}
-            </button>
+            <div class="operation-entry event">
+              <button class="operation-entry-main" type="button" data-open-operation-doc="${escapeAttribute(operation.id)}">
+                <span class="operation-entry-kind">事件</span>
+                <strong>${escapeHtml(operation.label || "操作事件")}</strong>
+                <small>${escapeHtml(formatDateTime(operation.createdAt))}</small>
+                ${operation.content ? `<p>${escapeHtml(markdownSummary(operation.content))}</p>` : ""}
+              </button>
+              <button
+                class="text-button danger operation-delete-button"
+                type="button"
+                aria-label="删除操作事件"
+                title="删除操作事件"
+                data-delete-operation="${escapeAttribute(operation.id)}"
+              ><span class="trash-icon" aria-hidden="true"></span></button>
+            </div>
           `;
         }).join("")}
       </div>
@@ -939,35 +1040,16 @@
         openOperationDocDialog(target, button.dataset.openOperationDoc);
       });
     }
-  }
 
-  function bindProjectRecordActions(scope) {
-    for (const button of scope.querySelectorAll("[data-delete-record]")) {
+    for (const button of scope.querySelectorAll("[data-delete-operation]")) {
       button.addEventListener("click", (event) => {
         event.preventDefault();
         event.stopPropagation();
-        if (!window.confirm("确定删除这条操作记录吗？")) return;
-        const project = projectById(button.dataset.projectId);
-        if (!project) return;
-        project.records = project.records.filter((record) => record.id !== button.dataset.deleteRecord);
-        saveProjects();
-        if (currentPage === "project-detail" && currentProjectId === project.id) {
-          renderProjectDetail(project);
-        } else {
-          renderProjects();
-        }
-      });
-    }
-
-    for (const button of scope.querySelectorAll("[data-export-record]")) {
-      button.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        const project = projectById(button.dataset.projectId);
-        if (!project) return;
-        const record = project.records.find((item) => item.id === button.dataset.exportRecord);
-        if (!record) return;
-        exportProjectRecord(project, record);
+        const area = button.closest("[data-operation-area-target]");
+        const targetContainer = area || button.closest("[data-operation-target]");
+        if (!targetContainer) return;
+        const target = JSON.parse(targetContainer.dataset.operationAreaTarget || targetContainer.dataset.operationTarget);
+        openOperationDeleteDialog(target, button.dataset.deleteOperation);
       });
     }
   }
@@ -984,22 +1066,6 @@
             </div>
             <div class="record-actions">
               <time>${escapeHtml(formatDateTime(entry.item.createdAt || entry.record.createdAt))}</time>
-              <button
-                class="text-button export"
-                type="button"
-                aria-label="导出操作记录 Markdown"
-                title="导出操作记录 Markdown"
-                data-project-id="${escapeAttribute(project.id)}"
-                data-export-record="${escapeAttribute(entry.record.id)}"
-              ><span class="export-icon" aria-hidden="true"></span></button>
-              <button
-                class="text-button danger"
-                type="button"
-                aria-label="删除操作记录"
-                title="删除操作记录"
-                data-project-id="${escapeAttribute(project.id)}"
-                data-delete-record="${escapeAttribute(entry.record.id)}"
-              ><span class="trash-icon" aria-hidden="true"></span></button>
             </div>
           </div>
         </div>
@@ -1013,16 +1079,25 @@
       <article class="timeline-card timeline-operation-card${isLatest ? " latest" : ""}">
         <div class="timeline-dot" aria-hidden="true"></div>
         <div class="timeline-body operation-node">
-          <button
-            class="operation-entry ${operation.type === "document" ? "document" : "event"}"
-            type="button"
-            data-open-operation-doc="${escapeAttribute(operation.id)}"
-          >
-            <span class="operation-entry-kind">${operation.type === "document" ? "文档" : "事件"}</span>
-            <strong>${escapeHtml(operation.type === "document" ? textValue(operation.title, "未命名操作文档") : textValue(operation.label, "操作事件"))}</strong>
-            <small>${escapeHtml(formatDateTime(operation.createdAt))}</small>
-            ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
-          </button>
+          <div class="operation-entry ${operation.type === "document" ? "document" : "event"}">
+            <button
+              class="operation-entry-main"
+              type="button"
+              data-open-operation-doc="${escapeAttribute(operation.id)}"
+            >
+              <span class="operation-entry-kind">${operation.type === "document" ? "文档" : "事件"}</span>
+              <strong>${escapeHtml(operation.type === "document" ? textValue(operation.title, "未命名操作文档") : textValue(operation.label, "操作事件"))}</strong>
+              <small>${escapeHtml(formatDateTime(operation.createdAt))}</small>
+              ${summary ? `<p>${escapeHtml(summary)}</p>` : ""}
+            </button>
+            <button
+              class="text-button danger operation-delete-button"
+              type="button"
+              aria-label="${operation.type === "document" ? "删除操作文档" : "删除操作事件"}"
+              title="${operation.type === "document" ? "删除操作文档" : "删除操作事件"}"
+              data-delete-operation="${escapeAttribute(operation.id)}"
+            ><span class="trash-icon" aria-hidden="true"></span></button>
+          </div>
         </div>
       </article>
     `;
@@ -1047,7 +1122,7 @@
             <p class="eyebrow">empty project</p>
             <h3>当前项目还没有安装包</h3>
             <p>先去安装包市场挑选需要的安装包，加入到当前项目里。</p>
-            <button id="shopForProjectButton" type="button">选购安装包</button>
+            <button id="shopForProjectButton" class="primary-button" type="button">选购安装包</button>
           </div>
         </section>
       `;
@@ -1124,7 +1199,6 @@
       });
     }
 
-    bindProjectRecordActions(els.projectDetailContent);
     bindOperationActions(els.projectDetailContent);
   }
 
@@ -1531,6 +1605,9 @@
   els.closeCartButton.addEventListener("click", closeCartDialog);
   els.closeOperationDocButton.addEventListener("click", closeOperationDocDialog);
   els.cancelOperationDocButton.addEventListener("click", closeOperationDocDialog);
+  els.closeOperationDeleteButton.addEventListener("click", closeOperationDeleteDialog);
+  els.cancelOperationDeleteButton.addEventListener("click", closeOperationDeleteDialog);
+  els.confirmOperationDeleteButton.addEventListener("click", deletePendingTarget);
 
   els.cartDialog.addEventListener("click", (event) => {
     if (event.target === els.cartDialog) closeCartDialog();
@@ -1540,6 +1617,9 @@
   });
   els.operationDocDialog.addEventListener("click", (event) => {
     if (event.target === els.operationDocDialog) closeOperationDocDialog();
+  });
+  els.operationDeleteDialog.addEventListener("click", (event) => {
+    if (event.target === els.operationDeleteDialog) closeOperationDeleteDialog();
   });
 
   els.operationDocForm.addEventListener("submit", (event) => {
@@ -1690,6 +1770,8 @@
     closeOtherCustomSelects(null);
     closeEventDropdowns();
     closeCartDialog();
+    closeOperationDocDialog();
+    closeOperationDeleteDialog();
   });
 
   enhanceSelects(document);

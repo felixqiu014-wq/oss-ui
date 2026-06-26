@@ -262,6 +262,7 @@ textarea:focus {
 #generateRecordButton,
 .doc-form button[type="submit"],
 .secondary-button,
+.primary-button,
 .copy-button {
   min-height: 40px;
   border: 1px solid var(--accent);
@@ -270,12 +271,31 @@ textarea:focus {
   color: #fff;
   padding: 0 14px;
   font-weight: 700;
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease,
+    transform 160ms ease;
 }
 
 .secondary-button {
   background: #fff;
   color: var(--accent-dark);
   white-space: nowrap;
+}
+
+.primary-button {
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(15, 118, 110, 0.16);
+}
+
+.primary-button:hover,
+.primary-button:focus-visible {
+  border-color: var(--accent-dark);
+  background: var(--accent-dark);
+  box-shadow: 0 10px 22px rgba(17, 94, 89, 0.22);
+  transform: translateY(-1px);
 }
 
 .primary-outline-button {
@@ -403,6 +423,14 @@ textarea:focus {
   flex-wrap: wrap;
   gap: 10px;
   padding-top: 18px;
+}
+
+.topbar-actions .danger-button {
+  min-height: 40px;
+  border-radius: 6px;
+  padding: 0 14px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 .detail-actions {
@@ -679,9 +707,25 @@ textarea:focus {
 }
 
 .project-summary-actions .secondary-button,
-.project-package-list-head .secondary-button {
+.project-summary-actions .primary-button,
+.project-package-list-head .secondary-button,
+.project-package-list-head .primary-button {
   flex: 0 0 auto;
   min-width: 120px;
+}
+
+.project-delete-button {
+  display: inline-grid;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+}
+
+.project-delete-button:hover,
+.project-delete-button:focus-visible {
+  background: rgba(180, 35, 24, 0.08);
 }
 
 .project-card small,
@@ -961,7 +1005,8 @@ textarea:focus {
   outline: 0;
 }
 
-.compact-button:hover,
+.secondary-button.compact-button:hover,
+.secondary-button.compact-button:focus-visible,
 .operation-entry.document:hover,
 .operation-entry.event:hover {
   border-color: var(--accent);
@@ -982,8 +1027,8 @@ textarea:focus {
 
 .operation-entry {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  gap: 8px 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
   align-items: center;
   width: 100%;
   border: 1px solid var(--line);
@@ -991,6 +1036,19 @@ textarea:focus {
   background: #fff;
   padding: 10px 12px;
   color: var(--text);
+  text-align: left;
+}
+
+.operation-entry-main {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px 10px;
+  align-items: center;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 0;
   text-align: left;
 }
 
@@ -1032,8 +1090,24 @@ textarea:focus {
   line-height: 1.5;
 }
 
+.operation-delete-button {
+  display: inline-grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  opacity: 0.72;
+}
+
+.operation-delete-button:hover,
+.operation-delete-button:focus-visible {
+  background: rgba(180, 35, 24, 0.08);
+  opacity: 1;
+}
+
 .project-modal,
-.doc-modal {
+.doc-modal,
+.confirm-modal {
   width: min(560px, 100%);
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -1074,10 +1148,46 @@ textarea:focus {
   font-size: 12px;
 }
 
+.confirm-body {
+  border-top: 1px solid var(--line);
+  padding: 18px;
+}
+
+.confirm-body p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
   gap: 12px;
+}
+
+.confirm-actions {
+  border-top: 1px solid var(--line);
+  padding: 18px;
+}
+
+.danger-button {
+  min-height: 42px;
+  border: 1px solid #be1818;
+  border-radius: 8px;
+  border-color: #be1818;
+  background: #be1818;
+  color: #fff;
+  padding: 0 20px;
+  font-weight: 800;
+  line-height: 1;
+  appearance: none;
+  box-shadow: none;
+}
+
+.danger-button:hover,
+.danger-button:focus-visible {
+  border-color: #991b1b;
+  background: #991b1b;
 }
 
 .record-actions {
@@ -1407,12 +1517,15 @@ textarea:focus {
     width: 100%;
   }
 
-  .project-summary-actions .secondary-button,
-  .operation-actions .secondary-button,
-  .modal-actions button,
-  .project-package-list-head .secondary-button {
-    width: 100%;
-  }
+.project-summary-actions .secondary-button,
+.project-summary-actions .primary-button,
+.operation-actions .secondary-button,
+.operation-actions .primary-button,
+.modal-actions button,
+.project-package-list-head .secondary-button,
+.project-package-list-head .primary-button {
+  width: 100%;
+}
 
   .event-dropdown {
     width: 100%;
@@ -1426,6 +1539,14 @@ textarea:focus {
 
   .operation-entry {
     grid-template-columns: 1fr;
+  }
+
+  .operation-entry-main {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .operation-entry small {
+    grid-column: 1 / -1;
   }
 
   .operation-entry p {
