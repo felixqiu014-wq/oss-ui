@@ -24,7 +24,6 @@
     backToProjectsButton: document.getElementById("backToProjectsButton"),
     openProjectModalButton: document.getElementById("openProjectModalButton"),
     exportProjectTimelineButton: document.getElementById("exportProjectTimelineButton"),
-    shopForProjectTopButton: document.getElementById("shopForProjectTopButton"),
     projectModal: document.getElementById("projectModal"),
     closeProjectModalButton: document.getElementById("closeProjectModalButton"),
     cancelProjectModalButton: document.getElementById("cancelProjectModalButton"),
@@ -38,15 +37,34 @@
     cartItems: document.getElementById("cartItems"),
     cartProjectSelect: document.getElementById("cartProjectSelect"),
     cartProjectLabelText: document.getElementById("cartProjectLabelText"),
+    cartEventSelect: document.getElementById("cartEventSelect"),
+    cartEventLabelText: document.getElementById("cartEventLabelText"),
     clearCartButton: document.getElementById("clearCartButton"),
     generateRecordButton: document.getElementById("generateRecordButton"),
+    projectEventModal: document.getElementById("projectEventModal"),
+    closeProjectEventModalButton: document.getElementById("closeProjectEventModalButton"),
+    cancelProjectEventModalButton: document.getElementById("cancelProjectEventModalButton"),
+    projectEventForm: document.getElementById("projectEventForm"),
+    projectEventTypeInput: document.getElementById("projectEventTypeInput"),
+    projectEventNameInput: document.getElementById("projectEventNameInput"),
     operationDocDialog: document.getElementById("operationDocDialog"),
     operationDocTitle: document.getElementById("operationDocTitle"),
     operationDocForm: document.getElementById("operationDocForm"),
     operationDocNameInput: document.getElementById("operationDocNameInput"),
     operationDocContentInput: document.getElementById("operationDocContentInput"),
+    operationDocPreview: document.getElementById("operationDocPreview"),
+    operationDocToolbar: document.getElementById("operationDocToolbar"),
     closeOperationDocButton: document.getElementById("closeOperationDocButton"),
     cancelOperationDocButton: document.getElementById("cancelOperationDocButton"),
+    exportPreviewDialog: document.getElementById("exportPreviewDialog"),
+    exportPreviewTitle: document.getElementById("exportPreviewTitle"),
+    exportPreviewMeta: document.getElementById("exportPreviewMeta"),
+    exportPreviewContentInput: document.getElementById("exportPreviewContentInput"),
+    exportPreviewContentPreview: document.getElementById("exportPreviewContentPreview"),
+    exportPreviewToolbar: document.getElementById("exportPreviewToolbar"),
+    closeExportPreviewButton: document.getElementById("closeExportPreviewButton"),
+    cancelExportPreviewButton: document.getElementById("cancelExportPreviewButton"),
+    confirmExportPreviewButton: document.getElementById("confirmExportPreviewButton"),
     operationDeleteDialog: document.getElementById("operationDeleteDialog"),
     operationDeleteEyebrow: document.getElementById("operationDeleteEyebrow"),
     operationDeleteTitle: document.getElementById("operationDeleteTitle"),
@@ -83,17 +101,25 @@
   let currentPage = "projects";
   let currentProjectId = "";
   let marketTargetProjectId = "";
+  let marketTargetEventId = "";
   let packageReturnPage = "projects";
   let selectedDetailPackageName = "";
+  let selectedProjectEventId = "";
   let pendingOperationTarget = null;
   let pendingDeleteTarget = null;
+  let pendingExportProjectId = "";
   const expandedGroups = new Set(["base"]);
   const customSelects = new Map();
   const operationEvents = [
+    { type: "init", label: "初始化安装" },
     { type: "upgrade", label: "升级" },
-    { type: "bugfix", label: "bug 修复" },
-    { type: "deploy", label: "部署" },
   ];
+
+  function normalizeEventType(type) {
+    const normalized = textValue(type, "upgrade");
+    if (normalized === "bugfix" || normalized === "deploy") return "upgrade";
+    return normalized === "init" || normalized === "upgrade" ? normalized : "upgrade";
+  }
 
   async function request(path, options) {
     const response = await fetch(path, {
@@ -137,9 +163,22 @@
     els.projectModal.classList.add("hidden");
   }
 
+  function closeProjectEventModal() {
+    els.projectEventModal.classList.add("hidden");
+  }
+
   function openProjectModal() {
     els.projectModal.classList.remove("hidden");
     els.projectNameInput.focus();
+  }
+
+  function openProjectEventModal() {
+    if (!currentProjectId) return;
+    els.projectEventTypeInput.value = "upgrade";
+    els.projectEventNameInput.value = "";
+    syncCustomSelect(els.projectEventTypeInput);
+    els.projectEventModal.classList.remove("hidden");
+    els.projectEventNameInput.focus();
   }
 
   function showConsole() {
@@ -158,6 +197,7 @@
   function showPackagePage() {
     closeCartDialog();
     closeProjectModal();
+    closeProjectEventModal();
     closeOperationDocDialog();
     closeOperationDeleteDialog();
     els.projectsPage.classList.add("hidden");
@@ -168,12 +208,14 @@
     els.topbarTitle.textContent = "安装包市场";
     els.topbarTitleMeta.textContent = "";
     const targetProject = projectById(marketTargetProjectId);
-    els.topbarSubtitle.textContent = targetProject ? `正在为项目「${targetProject.name}」选购安装包` : "";
+    const targetEvent = targetProject ? eventById(targetProject, marketTargetEventId) : null;
+    els.topbarSubtitle.textContent = targetProject
+      ? `正在为项目「${targetProject.name}」${targetEvent ? `的事件「${targetEvent.title}」` : ""}选购安装包`
+      : "";
     els.topbarBackIcon.classList.remove("hidden");
     els.marketButton.classList.add("hidden");
     els.openProjectModalButton.classList.add("hidden");
     els.exportProjectTimelineButton.classList.add("hidden");
-    els.shopForProjectTopButton.classList.add("hidden");
     els.cartButton.classList.remove("hidden");
     els.backToProjectsButton.classList.add("hidden");
     currentPage = "package";
@@ -182,6 +224,7 @@
   function showProjectsPage() {
     closeCartDialog();
     closeProjectModal();
+    closeProjectEventModal();
     closeOperationDocDialog();
     closeOperationDeleteDialog();
     els.packagePage.classList.add("hidden");
@@ -196,11 +239,11 @@
     els.marketButton.classList.remove("hidden");
     els.openProjectModalButton.classList.remove("hidden");
     els.exportProjectTimelineButton.classList.add("hidden");
-    els.shopForProjectTopButton.classList.add("hidden");
     els.cartButton.classList.add("hidden");
     els.backToProjectsButton.classList.add("hidden");
     packageReturnPage = "projects";
     currentPage = "projects";
+    marketTargetEventId = "";
     renderProjects();
   }
 
@@ -212,6 +255,7 @@
     }
     closeCartDialog();
     closeProjectModal();
+    closeProjectEventModal();
     closeOperationDocDialog();
     closeOperationDeleteDialog();
     currentProjectId = project.id;
@@ -227,7 +271,6 @@
     els.marketButton.classList.add("hidden");
     els.openProjectModalButton.classList.add("hidden");
     els.exportProjectTimelineButton.classList.remove("hidden");
-    els.shopForProjectTopButton.classList.remove("hidden");
     els.cartButton.classList.add("hidden");
     els.backToProjectsButton.classList.add("hidden");
     packageReturnPage = "project-detail";
@@ -249,9 +292,329 @@
     pendingOperationTarget = null;
   }
 
+  function closeExportPreviewDialog() {
+    els.exportPreviewDialog.classList.add("hidden");
+    pendingExportProjectId = "";
+  }
+
   function closeOperationDeleteDialog() {
     els.operationDeleteDialog.classList.add("hidden");
     pendingDeleteTarget = null;
+  }
+
+  function bindBackdropDismiss(backdrop, onClose) {
+    if (!backdrop) return;
+    let startedOnBackdrop = false;
+
+    backdrop.addEventListener("pointerdown", (event) => {
+      startedOnBackdrop = event.target === backdrop;
+    });
+
+    backdrop.addEventListener("click", (event) => {
+      const shouldClose = startedOnBackdrop && event.target === backdrop;
+      startedOnBackdrop = false;
+      if (shouldClose) onClose();
+    });
+
+    backdrop.addEventListener("pointercancel", () => {
+      startedOnBackdrop = false;
+    });
+  }
+
+  function escapeMarkdownInline(value) {
+    return escapeHtml(value).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/\*(.+?)\*/g, "<em>$1</em>")
+      .replace(/==(.+?)==/g, "<mark>$1</mark>")
+      .replace(/`([^`]+)`/g, "<code>$1</code>")
+      .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>');
+  }
+
+  function renderInlineLines(lines) {
+    return lines.map((line) => escapeMarkdownInline(line)).join("<br />");
+  }
+
+  function classifyCodeToken(token) {
+    if (/^https?:\/\//.test(token)) return "token-url";
+    if (/^(\/\/|#)/.test(token)) return "token-comment";
+    if (/^['"]/.test(token)) return "token-string";
+    if (/^\d/.test(token)) return "token-number";
+    if (/^(kubectl|helm|docker|npm|pnpm|yarn|bash|sh|curl|wget|git)$/.test(token)) return "token-command";
+    if (/^(const|let|var|function|return|if|else|for|while|class|new|import|from|export|async|await|try|catch|throw|switch|case|break|continue|true|false|null|undefined)$/.test(token)) return "token-keyword";
+    return "token-operator";
+  }
+
+  function highlightCode(code, language = "") {
+    const tokenPattern = /(https?:\/\/[^\s]+|\/\/.*$|#.*$|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\b(?:kubectl|helm|docker|npm|pnpm|yarn|bash|sh|curl|wget|git)\b|\b(?:const|let|var|function|return|if|else|for|while|class|new|import|from|export|async|await|try|catch|throw|switch|case|break|continue|true|false|null|undefined)\b|\b\d+(?:\.\d+)?\b|=>|===|!==|==|!=|&&|\|\||[=+\-])/gm;
+    let html = "";
+    let lastIndex = 0;
+
+    let match;
+    while ((match = tokenPattern.exec(code))) {
+      const token = match[0];
+      const offset = match.index;
+      html += escapeHtml(code.slice(lastIndex, offset));
+      html += `<span class="${classifyCodeToken(token)}">${escapeHtml(token)}</span>`;
+      lastIndex = offset + token.length;
+    }
+
+    html += escapeHtml(code.slice(lastIndex));
+    return `<pre><code data-language="${escapeAttribute(language)}">${html}</code></pre>`;
+  }
+
+  function renderMarkdownPreview(markdown) {
+    const source = String(markdown || "").replace(/\r\n/g, "\n");
+    if (!source.trim()) {
+      return `<p class="operation-empty">预览会显示在这里，支持标题、列表、引用、代码块。</p>`;
+    }
+
+    const lines = source.split("\n");
+    const blocks = [];
+    let index = 0;
+
+    while (index < lines.length) {
+      const line = lines[index];
+
+      if (/^```/.test(line)) {
+        const language = line.slice(3).trim();
+        const codeLines = [];
+        index += 1;
+        while (index < lines.length && !/^```/.test(lines[index])) {
+          codeLines.push(lines[index]);
+          index += 1;
+        }
+        if (index < lines.length) index += 1;
+        blocks.push(highlightCode(codeLines.join("\n"), language));
+        continue;
+      }
+
+      if (!line.trim()) {
+        index += 1;
+        continue;
+      }
+
+      const heading = line.match(/^(#{1,6})\s+(.*)$/);
+      if (heading) {
+        const level = heading[1].length;
+        const headingText = heading[2].trim();
+        let headingClass = "";
+        if (level === 2) headingClass = "markdown-section-break";
+        if (level === 4 && !/^\d+\./.test(headingText) && headingText !== "事件文档") headingClass = "markdown-package-break";
+        blocks.push(`<h${level}${headingClass ? ` class="${headingClass}"` : ""}>${escapeMarkdownInline(headingText)}</h${level}>`);
+        index += 1;
+        continue;
+      }
+
+      if (/^>\s?/.test(line)) {
+        const quoteLines = [];
+        while (index < lines.length && /^>\s?/.test(lines[index])) {
+          quoteLines.push(lines[index].replace(/^>\s?/, ""));
+          index += 1;
+        }
+        blocks.push(`<blockquote>${renderInlineLines(quoteLines)}</blockquote>`);
+        continue;
+      }
+
+      if (/^(-|\*)\s+/.test(line)) {
+        const items = [];
+        while (index < lines.length && /^(-|\*)\s+/.test(lines[index])) {
+          items.push(lines[index].replace(/^(-|\*)\s+/, ""));
+          index += 1;
+        }
+        blocks.push(`<ul>${items.map((item) => `<li>${escapeMarkdownInline(item)}</li>`).join("")}</ul>`);
+        continue;
+      }
+
+      if (/^\d+\.\s+/.test(line)) {
+        const items = [];
+        while (index < lines.length && /^\d+\.\s+/.test(lines[index])) {
+          items.push(lines[index].replace(/^\d+\.\s+/, ""));
+          index += 1;
+        }
+        blocks.push(`<ol>${items.map((item) => `<li>${escapeMarkdownInline(item)}</li>`).join("")}</ol>`);
+        continue;
+      }
+
+      if (/^---+$/.test(line.trim())) {
+        blocks.push("<hr />");
+        index += 1;
+        continue;
+      }
+
+      const paragraphLines = [];
+      while (
+        index < lines.length &&
+        lines[index].trim() &&
+        !/^```/.test(lines[index]) &&
+        !/^(#{1,6})\s+/.test(lines[index]) &&
+        !/^>\s?/.test(lines[index]) &&
+        !/^(-|\*)\s+/.test(lines[index]) &&
+        !/^\d+\.\s+/.test(lines[index]) &&
+        !/^---+$/.test(lines[index].trim())
+      ) {
+        paragraphLines.push(lines[index]);
+        index += 1;
+      }
+      blocks.push(`<p>${renderInlineLines(paragraphLines)}</p>`);
+    }
+
+    return blocks.join("");
+  }
+
+  function syncOperationDocPreview() {
+    if (!els.operationDocPreview) return;
+    els.operationDocPreview.innerHTML = renderMarkdownPreview(els.operationDocContentInput.value);
+  }
+
+  function syncExportPreview() {
+    if (!els.exportPreviewContentPreview) return;
+    els.exportPreviewContentPreview.innerHTML = renderMarkdownPreview(els.exportPreviewContentInput.value);
+  }
+
+  function applyTextareaChange(textarea, nextValue, selectionStart, selectionEnd) {
+    textarea.value = nextValue;
+    textarea.focus();
+    textarea.setSelectionRange(selectionStart, selectionEnd);
+    textarea.dispatchEvent(new Event("input", { bubbles: true }));
+  }
+
+  function findInlineWrapperAtCursor(value, position, prefix, suffix) {
+    const lineStart = value.lastIndexOf("\n", Math.max(0, position - 1)) + 1;
+    const lineEndIndex = value.indexOf("\n", position);
+    const lineEnd = lineEndIndex === -1 ? value.length : lineEndIndex;
+    const line = value.slice(lineStart, lineEnd);
+    const cursorOffset = position - lineStart;
+    let searchFrom = 0;
+
+    while (searchFrom < line.length) {
+      const openIndex = line.indexOf(prefix, searchFrom);
+      if (openIndex === -1) break;
+      const contentStart = openIndex + prefix.length;
+      const closeIndex = line.indexOf(suffix, contentStart);
+      if (closeIndex === -1) break;
+      if (cursorOffset >= contentStart && cursorOffset <= closeIndex) {
+        return {
+          wrapperStart: lineStart + openIndex,
+          contentStart: lineStart + contentStart,
+          contentEnd: lineStart + closeIndex,
+          wrapperEnd: lineStart + closeIndex + suffix.length,
+        };
+      }
+      searchFrom = closeIndex + suffix.length;
+    }
+
+    return null;
+  }
+
+  function toggleWrappedSelection(textarea, prefix, suffix, placeholder) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    const selectedText = value.slice(start, end);
+
+    if (selectedText.length >= prefix.length + suffix.length && selectedText.startsWith(prefix) && selectedText.endsWith(suffix)) {
+      const content = selectedText.slice(prefix.length, selectedText.length - suffix.length);
+      const nextValue = `${value.slice(0, start)}${content}${value.slice(end)}`;
+      applyTextareaChange(textarea, nextValue, start, start + content.length);
+      return;
+    }
+
+    if (start >= prefix.length && value.slice(start - prefix.length, start) === prefix && value.slice(end, end + suffix.length) === suffix) {
+      const nextValue = `${value.slice(0, start - prefix.length)}${selectedText}${value.slice(end + suffix.length)}`;
+      const nextStart = start - prefix.length;
+      applyTextareaChange(textarea, nextValue, nextStart, nextStart + selectedText.length);
+      return;
+    }
+
+    if (!selectedText) {
+      const wrapper = findInlineWrapperAtCursor(value, start, prefix, suffix);
+      if (wrapper) {
+        const content = value.slice(wrapper.contentStart, wrapper.contentEnd);
+        const cursorOffset = start - wrapper.contentStart;
+        const nextValue = `${value.slice(0, wrapper.wrapperStart)}${content}${value.slice(wrapper.wrapperEnd)}`;
+        const nextCursor = wrapper.wrapperStart + Math.max(0, Math.min(cursorOffset, content.length));
+        applyTextareaChange(textarea, nextValue, nextCursor, nextCursor);
+        return;
+      }
+    }
+
+    const content = selectedText || placeholder;
+    const nextValue = `${value.slice(0, start)}${prefix}${content}${suffix}${value.slice(end)}`;
+    const contentStart = start + prefix.length;
+    applyTextareaChange(textarea, nextValue, contentStart, contentStart + content.length);
+  }
+
+  function findEnclosingCodeBlock(value, start, end) {
+    const fencePattern = /(^|\n)```([^\n]*)\n([\s\S]*?)\n```(?=\n|$)/g;
+    let match;
+
+    while ((match = fencePattern.exec(value))) {
+      const leadingBreak = match[1].length;
+      const blockStart = match.index + leadingBreak;
+      const openingFence = `\`\`\`${match[2]}`;
+      const contentStart = blockStart + openingFence.length + 1;
+      const content = match[3];
+      const contentEnd = contentStart + content.length;
+      const blockEnd = blockStart + match[0].length - leadingBreak;
+
+      if (start >= blockStart && end <= blockEnd) {
+        return {
+          blockStart,
+          blockEnd,
+          contentStart,
+          contentEnd,
+          content,
+        };
+      }
+    }
+
+    return null;
+  }
+
+  function toggleCodeBlockSelection(textarea) {
+    const start = textarea.selectionStart;
+    const end = textarea.selectionEnd;
+    const value = textarea.value;
+    const enclosingBlock = findEnclosingCodeBlock(value, start, end);
+
+    if (enclosingBlock && start >= enclosingBlock.contentStart && end <= enclosingBlock.contentEnd) {
+      const nextValue = `${value.slice(0, enclosingBlock.blockStart)}${enclosingBlock.content}${value.slice(enclosingBlock.blockEnd)}`;
+      const nextStart = enclosingBlock.blockStart + (start - enclosingBlock.contentStart);
+      const nextEnd = enclosingBlock.blockStart + (end - enclosingBlock.contentStart);
+      applyTextareaChange(textarea, nextValue, nextStart, nextEnd);
+      return;
+    }
+
+    const selectedText = value.slice(start, end);
+    const leadingBreak = start > 0 && value[start - 1] !== "\n" ? "\n" : "";
+    const trailingBreak = end < value.length && value[end] !== "\n" ? "\n" : "";
+    const content = selectedText || "在这里输入代码";
+    const block = `${leadingBreak}\`\`\`\n${content}\n\`\`\`${trailingBreak}`;
+    const nextValue = `${value.slice(0, start)}${block}${value.slice(end)}`;
+    const contentStart = start + leadingBreak.length + "```\n".length;
+    applyTextareaChange(textarea, nextValue, contentStart, contentStart + content.length);
+  }
+
+  function formatSelectionForTextarea(textarea, format) {
+    if (!textarea) return;
+    if (format === "highlight") {
+      toggleWrappedSelection(textarea, "==", "==", "高亮内容");
+      return;
+    }
+    if (format === "inline-code") {
+      toggleWrappedSelection(textarea, "`", "`", "命令");
+      return;
+    }
+    if (format === "code-block") {
+      toggleCodeBlockSelection(textarea);
+    }
+  }
+
+  function formatOperationDocSelection(format) {
+    formatSelectionForTextarea(els.operationDocContentInput, format);
+  }
+
+  function formatExportPreviewSelection(format) {
+    formatSelectionForTextarea(els.exportPreviewContentInput, format);
   }
 
   function closeEventDropdowns() {
@@ -298,8 +661,7 @@
   }
 
   function actionLabel(value) {
-    const normalized = textValue(value, "未知操作");
-    return normalized === "添加到购物车" ? "添加到项目" : normalized;
+    return textValue(value, "未知操作");
   }
 
   function buildRecordMarkdown(project, record) {
@@ -351,7 +713,7 @@
     window.setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
   }
 
-  function buildOperationMarkdown(operation, level = "###") {
+  function buildOperationMarkdown(operation, level = "###", options = {}) {
     const createdAt = formatDateTime(operation.createdAt || new Date().toISOString());
     if (operation.type === "document") {
       return [
@@ -362,87 +724,126 @@
         textValue(operation.content, "无内容"),
       ];
     }
+    const eventLabel = textValue(operation.label, "操作事件");
+    const operationTitle = textValue(operation.title, "");
+    if (options.listStyle) {
+      const lines = [
+        `- ${createdAt} · ${eventLabel}`,
+      ];
+      if (operation.content) {
+        if (operationTitle && operationTitle !== eventLabel) {
+          lines.push("", `  - ${operationTitle}`);
+        }
+        lines.push("", textValue(operation.content, "无内容"));
+      }
+      return lines;
+    }
+    const detailLevel = `${level}#`;
     const lines = [
-      `${level} 事件：${textValue(operation.label, "操作事件")}`,
+      `${level} ${createdAt}`,
       "",
-      `- 时间：${createdAt}`,
+      `${detailLevel} ${eventLabel}`,
     ];
     if (operation.content) {
-      lines.push("", `#### ${textValue(operation.title || operation.label, "事件文档")}`, "", operation.content);
+      if (operationTitle && operationTitle !== eventLabel) {
+        lines.push("", `${detailLevel}# ${operationTitle}`, "", operation.content);
+      } else {
+        lines.push("", operation.content);
+      }
     }
     return lines;
   }
 
-  function buildPackageTimelineMarkdown(packageName, nodes) {
-    const lines = [`## ${packageName}`, ""];
-    if (nodes.length === 0) {
+  function buildPackageTimelineMarkdown(packageName, nodes, headingLevel = "##") {
+    const lines = [];
+    const packageOperations = nodes.filter((node) => node.type !== "package-operation");
+    const packageRecords = nodes.filter((node) => node.type === "package-operation");
+    if (packageRecords.length > 0) {
+      const details = packageRecords.map((node) => {
+        const item = node.item;
+        return [
+          textValue(item.channelLabel),
+          textValue(item.arch),
+          textValue(item.version, "未知版本"),
+        ].filter(Boolean).join(" · ");
+      });
+      lines.push(`${headingLevel} ${packageName} · ${details.join("；")}`, "");
+    } else {
+      lines.push(`${headingLevel} ${packageName}`, "");
+    }
+    if (packageOperations.length === 0) {
       lines.push("暂无时间线记录。");
       return lines;
     }
-    nodes.forEach((node, index) => {
-      if (node.type === "package-operation") {
-        const item = node.item;
-        const value = textValue(item.value || item.objectKey, "");
-        lines.push(
-          `### ${index + 1}. 安装包操作`,
-          "",
-          `- 时间：${formatDateTime(timelineTimestamp(node))}`,
-          `- 操作：${actionLabel(item.actionLabel || item.action)}`,
-          `- 渠道：${textValue(item.channelLabel)}`,
-          `- 架构：${textValue(item.arch)}`,
-          `- 版本：${textValue(item.version, "未知版本")}`,
-          `- 对象 Key：${textValue(item.objectKey, "无")}`,
-        );
-        if (value) {
-          lines.push("", "```text", value, "```");
-        }
-        lines.push("");
-        return;
-      }
-      lines.push(...buildOperationMarkdown(node, `### ${index + 1}.`), "");
+    packageOperations.forEach((node) => {
+      lines.push(...buildOperationMarkdown(node, `${headingLevel}#`, { listStyle: true }), "");
     });
     return lines;
   }
 
   function buildProjectTimelineMarkdown(project) {
     ensureProjectOperationShape(project);
-    const groupedPackages = recordsGroupedByPackage(project);
+    const events = sortedProjectEvents(project);
     const lines = [
       `# ${textValue(project.name, "未命名项目")} 项目时间线`,
       "",
       `- 项目负责人：${textValue(project.owner, "未填写")}`,
       `- 安装包操作记录：${project.records.length} 条`,
       `- 导出时间：${formatDateTime(new Date().toISOString())}`,
-      "",
-      "## 项目整体操作",
-      "",
     ];
 
-    const projectOps = sortedOperations(projectOperations(project));
-    if (projectOps.length === 0) {
-      lines.push("暂无项目整体操作。", "");
-    } else {
-      projectOps.forEach((operation, index) => {
-        lines.push(...buildOperationMarkdown(operation, `### ${index + 1}.`), "");
-      });
-    }
-
-    lines.push("## 安装包时间线", "");
-    if (groupedPackages.length === 0) {
-      lines.push("暂无安装包。");
+    if (events.length === 0) {
+      lines.push("", "暂无项目事件。");
       return `${lines.join("\n")}\n`;
     }
-    groupedPackages.forEach((pkg) => {
-      pkg.operations = packageOperations(project, pkg.name);
-      lines.push(...buildPackageTimelineMarkdown(pkg.name, buildPackageTimelineNodes(pkg, "asc")), "");
+
+    events.forEach((event, eventIndex) => {
+      const createdAt = formatDateTime(event.createdAt || new Date().toISOString());
+      lines.push(
+        "",
+        `## ${createdAt}`,
+        "",
+        `### ${eventIndex + 1}. ${textValue(event.title, "未命名事件")}`,
+        "",
+        "### 事件文档",
+        "",
+      );
+      if (!event.operations || event.operations.length === 0) {
+        lines.push("暂无事件文档。", "");
+      } else {
+        sortedOperations(event.operations).forEach((operation, index) => {
+          lines.push(...buildOperationMarkdown(operation, `#### ${index + 1}.`), "");
+        });
+      }
+
+      const groupedPackages = recordsGroupedByPackage(project, event.id);
+      if (groupedPackages.length === 0) {
+        lines.push("暂无安装包。", "");
+        return;
+      }
+      groupedPackages.forEach((pkg) => {
+        pkg.operations = eventPackageOperations(project, event.id, pkg.name);
+        lines.push(...buildPackageTimelineMarkdown(pkg.name, buildPackageTimelineNodes(pkg, "asc"), "####"), "");
+      });
     });
     return `${lines.join("\n")}\n`;
   }
 
-  function exportProjectTimeline(project) {
+  function exportProjectTimeline(project, contentOverride = "") {
     const timestamp = formatDateTimeForFileName(new Date().toISOString());
     const filename = sanitizeFileName(`${project.name}-项目时间线-${timestamp}.md`);
-    downloadTextFile(filename, buildProjectTimelineMarkdown(project), "text/markdown;charset=utf-8");
+    downloadTextFile(filename, contentOverride || buildProjectTimelineMarkdown(project), "text/markdown;charset=utf-8");
+  }
+
+  function openExportPreviewDialog(project) {
+    if (!project) return;
+    pendingExportProjectId = project.id;
+    els.exportPreviewTitle.textContent = `导出 ${textValue(project.name, "项目")} 时间线`;
+    els.exportPreviewMeta.textContent = `确认项目「${textValue(project.name, "未命名项目")}」的时间线内容无误后，再点击右下角确认导出。`;
+    els.exportPreviewContentInput.value = buildProjectTimelineMarkdown(project);
+    syncExportPreview();
+    els.exportPreviewDialog.classList.remove("hidden");
+    els.exportPreviewContentInput.focus();
   }
 
   function currentPackageVersion(link) {
@@ -638,10 +1039,28 @@
     syncCustomSelect(els.cartProjectSelect);
   }
 
+  function renderEventOptions() {
+    const projectId = marketTargetProjectId || els.cartProjectSelect.value;
+    const project = projectById(projectId);
+    const events = project ? sortedProjectEvents(project) : [];
+    els.cartEventSelect.innerHTML = events.length === 0
+      ? `<option value="">请先创建项目事件</option>`
+      : events.map((event) => `<option value="${escapeAttribute(event.id)}">${escapeHtml(event.title)}</option>`).join("");
+    if (marketTargetEventId && events.some((event) => event.id === marketTargetEventId)) {
+      els.cartEventSelect.value = marketTargetEventId;
+    } else if (events[0]) {
+      els.cartEventSelect.value = events[0].id;
+    }
+    els.cartEventSelect.disabled = events.length === 0 || Boolean(marketTargetEventId && project && eventById(project, marketTargetEventId));
+    els.cartEventLabelText.textContent = project ? `记录到事件（${project.name}）` : "记录到事件";
+    syncCustomSelect(els.cartEventSelect);
+  }
+
   function renderCart() {
     syncCartCount();
     renderProjectOptions();
-    els.generateRecordButton.disabled = cartItems.length === 0 || projects.length === 0;
+    renderEventOptions();
+    els.generateRecordButton.disabled = cartItems.length === 0 || projects.length === 0 || !els.cartEventSelect.value;
     els.clearCartButton.disabled = cartItems.length === 0;
 
     if (cartItems.length === 0) {
@@ -713,9 +1132,15 @@
     }
   }
 
-  function recordsGroupedByPackage(project) {
+  function eventTypeLabel(type) {
+    const found = operationEvents.find((item) => item.type === normalizeEventType(type));
+    return found ? found.label : textValue(type, "项目事件");
+  }
+
+  function recordsGroupedByPackage(project, eventId = "") {
     const grouped = new Map();
     for (const record of project.records || []) {
+      if (eventId && record.eventId !== eventId) continue;
       for (const item of record.items || []) {
         const packageName = textValue(item.packageName, "未命名安装包");
         const group = grouped.get(packageName) || { name: packageName, items: [] };
@@ -724,6 +1149,51 @@
       }
     }
     return Array.from(grouped.values()).sort((a, b) => a.name.localeCompare(b.name, "zh-CN"));
+  }
+
+  function projectEvents(project) {
+    if (!Array.isArray(project.events)) {
+      project.events = [];
+    }
+    return project.events;
+  }
+
+  function sortedProjectEvents(project) {
+    return [...projectEvents(project)].sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  }
+
+  function eventById(project, eventId) {
+    return projectEvents(project).find((event) => event.id === eventId) || null;
+  }
+
+  function eventPackageOperations(project, eventId, packageName) {
+    if (!project.eventPackageOperations || typeof project.eventPackageOperations !== "object" || Array.isArray(project.eventPackageOperations)) {
+      project.eventPackageOperations = {};
+    }
+    const eventKey = textValue(eventId, "default-event");
+    if (!project.eventPackageOperations[eventKey] || typeof project.eventPackageOperations[eventKey] !== "object" || Array.isArray(project.eventPackageOperations[eventKey])) {
+      project.eventPackageOperations[eventKey] = {};
+    }
+    const packageKey = textValue(packageName, "未命名安装包");
+    if (!Array.isArray(project.eventPackageOperations[eventKey][packageKey])) {
+      project.eventPackageOperations[eventKey][packageKey] = [];
+    }
+    return project.eventPackageOperations[eventKey][packageKey];
+  }
+
+  function createProjectEvent(project, { type, title, isLegacyDefault = false, createdAt = "" }) {
+    const eventType = normalizeEventType(type);
+    const eventTitle = textValue(title, `${eventTypeLabel(eventType)} · ${formatDateTime(createdAt || new Date().toISOString())}`);
+    const event = {
+      id: generateId("event"),
+      type: eventType,
+      title: eventTitle,
+      createdAt: createdAt || new Date().toISOString(),
+      operations: [],
+      isLegacyDefault,
+    };
+    projectEvents(project).push(event);
+    return event;
   }
 
   function ensureProjectOperationShape(project) {
@@ -736,7 +1206,89 @@
       project.packageOperations = {};
       changed = true;
     }
+    if (!project.eventPackageOperations || typeof project.eventPackageOperations !== "object" || Array.isArray(project.eventPackageOperations)) {
+      project.eventPackageOperations = {};
+      changed = true;
+    }
+    if (!Array.isArray(project.events)) {
+      project.events = [];
+      changed = true;
+    }
+    for (const event of projectEvents(project)) {
+      if (!event.id) {
+        event.id = generateId("event");
+        changed = true;
+      }
+      if (!event.type) {
+        event.type = "upgrade";
+        changed = true;
+      }
+      const normalizedType = normalizeEventType(event.type);
+      if (event.type !== normalizedType) {
+        event.type = normalizedType;
+        changed = true;
+      }
+      if (!event.title) {
+        event.title = eventTypeLabel(event.type);
+        changed = true;
+      }
+      if (!event.createdAt) {
+        event.createdAt = project.createdAt || new Date().toISOString();
+        changed = true;
+      }
+      if (!Array.isArray(event.operations)) {
+        event.operations = [];
+        changed = true;
+      }
+    }
+
+    const legacyProjectOps = Array.isArray(project.operations) ? project.operations : [];
+    const legacyPackageOps = project.packageOperations && typeof project.packageOperations === "object" && !Array.isArray(project.packageOperations)
+      ? project.packageOperations
+      : {};
+    const recordsWithoutEvent = (project.records || []).filter((record) => !record.eventId);
+    const hasLegacyState = legacyProjectOps.length > 0 || Object.keys(legacyPackageOps).length > 0 || recordsWithoutEvent.length > 0;
+    let legacyEvent = null;
+    if (hasLegacyState) {
+      legacyEvent = projectEvents(project).find((event) => event.isLegacyDefault);
+      if (!legacyEvent) {
+        legacyEvent = createProjectEvent(project, {
+          type: "upgrade",
+          title: "历史事件",
+          isLegacyDefault: true,
+          createdAt: recordsWithoutEvent[0]?.createdAt || legacyProjectOps[0]?.createdAt || project.createdAt || new Date().toISOString(),
+        });
+        changed = true;
+      }
+      if (legacyProjectOps.length > 0) {
+        legacyEvent.operations.push(...legacyProjectOps);
+        project.operations = [];
+        changed = true;
+      }
+      for (const record of recordsWithoutEvent) {
+        record.eventId = legacyEvent.id;
+        changed = true;
+      }
+      for (const [packageName, operations] of Object.entries(legacyPackageOps)) {
+        eventPackageOperations(project, legacyEvent.id, packageName).push(...(Array.isArray(operations) ? operations : []));
+        changed = true;
+      }
+      if (Object.keys(legacyPackageOps).length > 0) {
+        project.packageOperations = {};
+        changed = true;
+      }
+    }
+
     for (const record of project.records || []) {
+      if (!record.eventId) {
+        const fallbackEvent = projectEvents(project)[0] || createProjectEvent(project, {
+          type: "upgrade",
+          title: "默认事件",
+          createdAt: record.createdAt || project.createdAt || new Date().toISOString(),
+        });
+        record.eventId = fallbackEvent.id;
+        changed = true;
+      }
       for (const item of record.items || []) {
         if (!item.id) {
           item.id = generateId("item");
@@ -749,7 +1301,7 @@
         }
         if (item.operations.length > 0) {
           const packageName = textValue(item.packageName, "未命名安装包");
-          const targetOperations = packageOperations(project, packageName);
+          const targetOperations = eventPackageOperations(project, record.eventId, packageName);
           for (const operation of item.operations) {
             targetOperations.push({
               ...operation,
@@ -764,32 +1316,24 @@
     if (changed) saveProjects();
   }
 
-  function projectOperations(project) {
-    if (!Array.isArray(project.operations)) {
-      project.operations = [];
-    }
-    return project.operations;
-  }
-
-  function packageOperations(project, packageName) {
-    if (!project.packageOperations || typeof project.packageOperations !== "object" || Array.isArray(project.packageOperations)) {
-      project.packageOperations = {};
-    }
-    const key = textValue(packageName, "未命名安装包");
-    if (!Array.isArray(project.packageOperations[key])) {
-      project.packageOperations[key] = [];
-    }
-    return project.packageOperations[key];
-  }
-
   function findOperationTarget(target) {
     const project = projectById(target.projectId);
     if (!project) return null;
-    if (target.scope === "project") {
-      return { project, operations: projectOperations(project) };
+    ensureProjectOperationShape(project);
+    if (target.scope === "event") {
+      const event = eventById(project, target.eventId);
+      if (!event) return null;
+      return { project, event, operations: event.operations };
     }
     if (target.scope === "package") {
-      return { project, packageName: target.packageName, operations: packageOperations(project, target.packageName) };
+      const event = eventById(project, target.eventId);
+      if (!event) return null;
+      return {
+        project,
+        event,
+        packageName: target.packageName,
+        operations: eventPackageOperations(project, target.eventId, target.packageName),
+      };
     }
     return null;
   }
@@ -804,6 +1348,7 @@
     els.operationDocTitle.textContent = operation ? "编辑操作文档" : "添加操作文档";
     els.operationDocNameInput.value = operation ? textValue(operation.title || operation.label, "") : "";
     els.operationDocContentInput.value = operation ? textValue(operation.content, "") : "";
+    syncOperationDocPreview();
     els.operationDocDialog.classList.remove("hidden");
     els.operationDocNameInput.focus();
   }
@@ -844,23 +1389,49 @@
       projects = projects.filter((project) => project.id !== pendingDeleteTarget.projectId);
       if (currentProjectId === pendingDeleteTarget.projectId) {
         currentProjectId = "";
+        selectedProjectEventId = "";
+        selectedDetailPackageName = "";
+        marketTargetEventId = "";
       }
       if (marketTargetProjectId === pendingDeleteTarget.projectId) {
         marketTargetProjectId = "";
+        marketTargetEventId = "";
       }
       saveProjects();
       closeOperationDeleteDialog();
       renderProjects();
       return;
     }
+    if (pendingDeleteTarget.kind === "event") {
+      const project = projectById(pendingDeleteTarget.projectId);
+      if (!project) return;
+      ensureProjectOperationShape(project);
+      project.events = projectEvents(project).filter((event) => event.id !== pendingDeleteTarget.eventId);
+      project.records = (project.records || []).filter((record) => record.eventId !== pendingDeleteTarget.eventId);
+      if (project.eventPackageOperations && typeof project.eventPackageOperations === "object") {
+        delete project.eventPackageOperations[pendingDeleteTarget.eventId];
+      }
+      const remainingEvents = sortedProjectEvents(project);
+      if (selectedProjectEventId === pendingDeleteTarget.eventId) {
+        selectedProjectEventId = remainingEvents[0]?.id || "";
+      }
+      if (marketTargetEventId === pendingDeleteTarget.eventId) {
+        marketTargetEventId = remainingEvents[0]?.id || "";
+      }
+      selectedDetailPackageName = "";
+      saveProjects();
+      closeOperationDeleteDialog();
+      renderProjectDetail(project);
+      return;
+    }
     const resolved = findOperationTarget(pendingDeleteTarget);
     if (!resolved) return;
     resolved.operations = resolved.operations.filter((item) => item.id !== pendingDeleteTarget.operationId);
-    if (pendingDeleteTarget.scope === "project") {
-      resolved.project.operations = resolved.operations;
+    if (pendingDeleteTarget.scope === "event") {
+      resolved.event.operations = resolved.operations;
     }
     if (pendingDeleteTarget.scope === "package") {
-      resolved.project.packageOperations[pendingDeleteTarget.packageName] = resolved.operations;
+      resolved.project.eventPackageOperations[pendingDeleteTarget.eventId][pendingDeleteTarget.packageName] = resolved.operations;
     }
     saveProjects();
     closeOperationDeleteDialog();
@@ -888,6 +1459,11 @@
 
   function markdownSummary(value) {
     return textValue(value, "")
+      .replace(/(?:https?:\/\/)?[^\s/]+(?:\/[^\s/]+){3,}/g, (match) => {
+        const parts = match.split("/").filter(Boolean);
+        if (parts.length <= 4) return match;
+        return `${parts.slice(0, 3).join("/")}/.../${parts[parts.length - 1]}`;
+      })
       .replace(/[#*_`>\-[\]()]/g, "")
       .replace(/\s+/g, " ")
       .trim()
@@ -898,13 +1474,13 @@
     const targetJson = escapeAttribute(JSON.stringify(target));
     return `
       <div class="operation-actions" data-operation-target="${targetJson}">
-        <button class="secondary-button compact-button" type="button" data-add-operation-doc>添加空文档</button>
         <div class="event-dropdown">
           <button class="primary-button compact-button event-dropdown-trigger" type="button" data-event-menu-trigger aria-expanded="false">
             添加事件文档
             <span class="event-dropdown-icon" aria-hidden="true">▾</span>
           </button>
           <div class="event-dropdown-menu" role="menu">
+            <button class="event-dropdown-option" type="button" role="menuitem" data-add-operation-doc>空文档</button>
             ${operationEvents.map((event) => `
               <button class="event-dropdown-option" type="button" role="menuitem" data-add-operation-event="${escapeAttribute(event.type)}">${escapeHtml(event.label)}</button>
             `).join("")}
@@ -914,9 +1490,67 @@
     `;
   }
 
-  function renderOperationStream(operations, emptyText) {
+  function renderEventTabs(events, activeEventId) {
+    return `
+      <section class="project-events-panel">
+        <div class="project-events-head">
+          <div>
+            <p class="eyebrow">project events</p>
+            <h3>项目事件</h3>
+          </div>
+          <button class="primary-button" type="button" data-create-project-event>新增事件</button>
+        </div>
+        <div class="project-event-items">
+          ${events.map((event) => `
+            <div class="project-event-item${event.id === activeEventId ? " active" : ""}">
+              <button
+                class="project-event-tab-button"
+                type="button"
+                data-event-tab="${escapeAttribute(event.id)}"
+              >
+                <strong>${escapeHtml(event.title)}</strong>
+                <span>${escapeHtml(eventTypeLabel(event.type))} · ${escapeHtml(formatDateTime(event.createdAt))}</span>
+              </button>
+              <button
+                class="text-button danger project-event-delete-button"
+                type="button"
+                data-delete-project-event="${escapeAttribute(event.id)}"
+                aria-label="删除事件 ${escapeAttribute(event.title)}"
+                title="删除当前事件"
+              ><span class="trash-icon" aria-hidden="true"></span></button>
+            </div>
+          `).join("")}
+        </div>
+      </section>
+    `;
+  }
+
+  function renderEventSummary(event) {
+    return `
+      <section class="event-summary-card">
+        <div>
+          <p class="eyebrow">active event</p>
+          <h3>${escapeHtml(event.title)}</h3>
+          <p class="event-summary-meta">${escapeHtml(eventTypeLabel(event.type))} · ${escapeHtml(formatDateTime(event.createdAt))} · ${(event.operations || []).length} 条事件文档</p>
+        </div>
+        <div class="event-summary-actions">
+          <button class="primary-button" type="button" data-shop-event-packages>为当前事件选购安装包</button>
+        </div>
+      </section>
+    `;
+  }
+
+  function renderOperationStream(operations, emptyText, options = {}) {
     const items = sortedOperations(operations);
     if (items.length === 0) {
+      if (options.directCreateDoc) {
+        return `
+          <button class="operation-empty-card" type="button" data-create-operation-doc>
+            <strong>${escapeHtml(options.emptyActionTitle || "点击开始编辑事件文档")}</strong>
+            <span>${escapeHtml(emptyText)}</span>
+          </button>
+        `;
+      }
       return `<p class="operation-empty">${escapeHtml(emptyText)}</p>`;
     }
     return `
@@ -964,7 +1598,7 @@
     `;
   }
 
-  function renderOperationArea(target, operations, title, emptyText) {
+  function renderOperationArea(target, operations, title, emptyText, options = {}) {
     const targetJson = escapeAttribute(JSON.stringify(target));
     return `
       <section class="operation-area" data-operation-area-target="${targetJson}">
@@ -973,9 +1607,9 @@
             <p class="eyebrow">operation area</p>
             <h4>${escapeHtml(title)}</h4>
           </div>
-          ${renderOperationActions(target)}
+          ${options.showActions === false ? "" : renderOperationActions(target)}
         </div>
-        ${renderOperationStream(operations, emptyText)}
+        ${renderOperationStream(operations, emptyText, options)}
       </section>
     `;
   }
@@ -1005,13 +1639,42 @@
     });
   }
 
+  function packageRecordSummary(activePackage) {
+    const items = [...(activePackage.items || [])]
+      .sort((a, b) => new Date((a.item.createdAt || a.record.createdAt || 0)) - new Date((b.item.createdAt || b.record.createdAt || 0)))
+      .map((entry) => {
+        const item = entry.item;
+        return [
+          textValue(item.channelLabel),
+          textValue(item.arch),
+          textValue(item.version, "未知版本"),
+        ].filter(Boolean).join(" · ");
+      });
+    return items.join("；");
+  }
+
+  function ensurePackageOperationSeed(project, eventId, items) {
+    const event = eventById(project, eventId);
+    if (!event) return;
+    const createdAt = new Date().toISOString();
+    for (const item of items || []) {
+      const packageName = textValue(item.packageName, "未命名安装包");
+      const operations = eventPackageOperations(project, eventId, packageName);
+      if (operations.length > 0) continue;
+      operations.push({
+        id: generateId("operation"),
+        type: "event",
+        eventType: normalizeEventType(event.type),
+        label: eventTypeLabel(event.type),
+        createdAt,
+        autoGenerated: true,
+      });
+    }
+  }
+
   function bindOperationActions(scope) {
     for (const actions of scope.querySelectorAll("[data-operation-target]")) {
       const target = JSON.parse(actions.dataset.operationTarget);
-      const docButton = actions.querySelector("[data-add-operation-doc]");
-      if (docButton) {
-        docButton.addEventListener("click", () => openOperationDocDialog(target));
-      }
       const eventTrigger = actions.querySelector("[data-event-menu-trigger]");
       if (eventTrigger) {
         eventTrigger.addEventListener("click", (event) => {
@@ -1021,6 +1684,12 @@
           closeEventDropdowns();
           dropdown.classList.toggle("is-open", nextOpen);
           eventTrigger.setAttribute("aria-expanded", String(nextOpen));
+        });
+      }
+      for (const button of actions.querySelectorAll("[data-add-operation-doc]")) {
+        button.addEventListener("click", () => {
+          closeEventDropdowns();
+          openOperationDocDialog(target);
         });
       }
       for (const button of actions.querySelectorAll("[data-add-operation-event]")) {
@@ -1038,6 +1707,15 @@
         if (!targetContainer) return;
         const target = JSON.parse(targetContainer.dataset.operationAreaTarget || targetContainer.dataset.operationTarget);
         openOperationDocDialog(target, button.dataset.openOperationDoc);
+      });
+    }
+
+    for (const button of scope.querySelectorAll("[data-create-operation-doc]")) {
+      button.addEventListener("click", () => {
+        const area = button.closest("[data-operation-area-target]");
+        if (!area) return;
+        const target = JSON.parse(area.dataset.operationAreaTarget);
+        openOperationDocDialog(target);
       });
     }
 
@@ -1112,28 +1790,61 @@
 
   function renderProjectDetail(project) {
     ensureProjectOperationShape(project);
-    const groupedPackages = recordsGroupedByPackage(project);
+    const events = sortedProjectEvents(project);
 
-    if (groupedPackages.length === 0) {
+    if (events.length === 0) {
+      selectedProjectEventId = "";
       selectedDetailPackageName = "";
       els.projectDetailContent.innerHTML = `
         <section class="project-empty-state">
           <div class="project-empty-panel">
-            <p class="eyebrow">empty project</p>
-            <h3>当前项目还没有安装包</h3>
-            <p>先去安装包市场挑选需要的安装包，加入到当前项目里。</p>
-            <button id="shopForProjectButton" class="primary-button" type="button">选购安装包</button>
+            <p class="eyebrow">project event required</p>
+            <h3>先创建一个项目事件</h3>
+            <p>正确路径是「项目 - 事件 - 选购安装包 - 编辑对应文档」，请先创建项目事件。</p>
+            <button id="createProjectEventButton" class="primary-button" type="button">新增项目事件</button>
           </div>
         </section>
       `;
-      const button = document.getElementById("shopForProjectButton");
-      if (button) {
-        button.addEventListener("click", () => {
-          marketTargetProjectId = project.id;
-          packageReturnPage = "project-detail";
-          showPackagePage();
-        });
-      }
+      document.getElementById("createProjectEventButton")?.addEventListener("click", openProjectEventModal);
+      return;
+    }
+
+    if (!events.some((event) => event.id === selectedProjectEventId)) {
+      selectedProjectEventId = marketTargetEventId && events.some((event) => event.id === marketTargetEventId)
+        ? marketTargetEventId
+        : events[0].id;
+    }
+    const activeEvent = eventById(project, selectedProjectEventId) || events[0];
+    selectedProjectEventId = activeEvent.id;
+    const groupedPackages = recordsGroupedByPackage(project, activeEvent.id);
+
+    if (groupedPackages.length === 0) {
+      selectedDetailPackageName = "";
+      els.projectDetailContent.innerHTML = `
+        <section class="project-event-layout">
+          ${renderEventTabs(events, activeEvent.id)}
+          <section class="event-workspace">
+            ${renderEventSummary(activeEvent)}
+            <div class="event-workspace-body">
+              <section class="project-operations-panel">
+                ${renderOperationArea(
+                  { scope: "event", projectId: project.id, eventId: activeEvent.id },
+                  activeEvent.operations || [],
+                  "事件文档",
+                  "点击这里，直接开始编辑这个事件的文档内容。",
+                  {
+                    showActions: false,
+                    directCreateDoc: true,
+                    emptyActionTitle: "点击开始编辑事件文档",
+                  },
+                )}
+              </section>
+            </div>
+          </section>
+        </section>
+      `;
+      bindProjectEventActions(project);
+      bindOperationActions(els.projectDetailContent);
       return;
     }
 
@@ -1142,51 +1853,70 @@
     }
     const activePackage = groupedPackages.find((item) => item.name === selectedDetailPackageName) || groupedPackages[0];
     selectedDetailPackageName = activePackage.name;
-    activePackage.operations = packageOperations(project, activePackage.name);
-    const activePackageTarget = { scope: "package", projectId: project.id, packageName: activePackage.name };
+    activePackage.operations = eventPackageOperations(project, activeEvent.id, activePackage.name);
+    const activePackageTarget = { scope: "package", projectId: project.id, eventId: activeEvent.id, packageName: activePackage.name };
     const packageTimelineNodes = buildPackageTimelineNodes(activePackage, "asc");
+    const packageOperationNodes = packageTimelineNodes.filter((node) => node.type !== "package-operation");
     const activePackageTargetJson = escapeAttribute(JSON.stringify(activePackageTarget));
 
     els.projectDetailContent.innerHTML = `
-      <section class="project-operations-panel">
-        ${renderOperationArea(
-          { scope: "project", projectId: project.id },
-          projectOperations(project),
-          "项目整体操作",
-          "从项目整体视角记录文档或事件，适合跨安装包的操作事项。",
-        )}
-      </section>
-      <section class="project-detail-layout">
-        <aside class="project-package-list">
-          <div class="project-package-list-head">
-            <div>
-              <p class="eyebrow">package list</p>
-              <h3>已添加安装包</h3>
-            </div>
-          </div>
-          <div class="project-package-items">
-            ${groupedPackages.map((pkg) => `
-              <button
-                class="project-package-item${pkg.name === activePackage.name ? " active" : ""}"
-                type="button"
-                data-package-tab="${escapeAttribute(pkg.name)}"
-              >
-                <strong>${escapeHtml(pkg.name)}</strong>
-                <span>${pkg.items.length} 条记录</span>
-              </button>
-            `).join("")}
-          </div>
-        </aside>
-        <section class="project-timeline-panel">
-          <div class="project-timeline-head">
-            <div>
-              <p class="eyebrow">package timeline</p>
-              <h3>${escapeHtml(activePackage.name)}</h3>
-            </div>
-            ${renderOperationActions(activePackageTarget)}
-          </div>
-          <div class="timeline-list" data-operation-area-target="${activePackageTargetJson}">
-            ${packageTimelineNodes.map((node, index) => renderPackageTimelineNode(project, node, index === packageTimelineNodes.length - 1)).join("")}
+      <section class="project-event-layout">
+        ${renderEventTabs(events, activeEvent.id)}
+        <section class="event-workspace">
+          ${renderEventSummary(activeEvent)}
+          <div class="event-workspace-body">
+            <section class="project-operations-panel">
+              ${renderOperationArea(
+                { scope: "event", projectId: project.id, eventId: activeEvent.id },
+                activeEvent.operations || [],
+                "事件文档",
+                "点击这里，直接开始编辑这个事件的文档内容。",
+                {
+                  showActions: false,
+                  directCreateDoc: true,
+                  emptyActionTitle: "点击开始编辑事件文档",
+                },
+              )}
+            </section>
+            <section class="project-detail-layout">
+              <aside class="project-package-list">
+                <div class="project-package-list-head">
+                <div>
+                  <p class="eyebrow">package list</p>
+                  <h3>安装包列表</h3>
+                </div>
+              </div>
+                <div class="project-package-items">
+                  ${groupedPackages.map((pkg) => `
+                    <button
+                      class="project-package-item${pkg.name === activePackage.name ? " active" : ""}"
+                      type="button"
+                      data-package-tab="${escapeAttribute(pkg.name)}"
+                    >
+                      <strong>${escapeHtml(pkg.name)}</strong>
+                      <span class="package-meta-text">${escapeHtml(packageRecordSummary(pkg) || `${pkg.items.length} 条记录`)}</span>
+                    </button>
+                  `).join("")}
+                </div>
+              </aside>
+              <section class="project-timeline-panel">
+                <div class="project-timeline-head">
+                  <div>
+                    <p class="eyebrow">package timeline</p>
+                    <h3>${escapeHtml(activePackage.name)}</h3>
+                    <p class="package-meta-text">${escapeHtml(packageRecordSummary(activePackage))}</p>
+                  </div>
+                  ${renderOperationActions(activePackageTarget)}
+                </div>
+                <div class="timeline-list" data-operation-area-target="${activePackageTargetJson}">
+                  ${packageOperationNodes.length > 0
+                    ? packageOperationNodes
+                      .map((node, index) => renderPackageTimelineNode(project, node, index === packageOperationNodes.length - 1))
+                      .join("")
+                    : `<p class="operation-empty">这个安装包还没有补充文档或事件记录。</p>`}
+                </div>
+              </section>
+            </section>
           </div>
         </section>
       </section>
@@ -1199,7 +1929,41 @@
       });
     }
 
+    bindProjectEventActions(project);
     bindOperationActions(els.projectDetailContent);
+  }
+
+  function bindProjectEventActions(project) {
+    for (const button of els.projectDetailContent.querySelectorAll("[data-create-project-event]")) {
+      button.addEventListener("click", openProjectEventModal);
+    }
+    for (const button of els.projectDetailContent.querySelectorAll("[data-event-tab]")) {
+      button.addEventListener("click", () => {
+        selectedProjectEventId = button.dataset.eventTab;
+        selectedDetailPackageName = "";
+        renderProjectDetail(project);
+      });
+    }
+    for (const button of els.projectDetailContent.querySelectorAll("[data-shop-event-packages]")) {
+      button.addEventListener("click", () => {
+        marketTargetProjectId = project.id;
+        marketTargetEventId = selectedProjectEventId;
+        packageReturnPage = "project-detail";
+        showPackagePage();
+      });
+    }
+    for (const button of els.projectDetailContent.querySelectorAll("[data-delete-project-event]")) {
+      button.addEventListener("click", () => {
+        const event = eventById(project, button.dataset.deleteProjectEvent);
+        if (!event) return;
+        pendingDeleteTarget = { kind: "event", projectId: project.id, eventId: event.id };
+        els.operationDeleteEyebrow.textContent = "delete project event";
+        els.operationDeleteTitle.textContent = "删除这个项目事件？";
+        els.operationDeleteMessage.textContent = `即将删除事件「${textValue(event.title, "未命名事件")}」以及该事件下的安装包记录和文档，删除后不可恢复。`;
+        els.operationDeleteDialog.classList.remove("hidden");
+        els.confirmOperationDeleteButton.focus();
+      });
+    }
   }
 
   function addCurrentPackageToCart(source) {
@@ -1564,16 +2328,18 @@
 
   els.marketButton.addEventListener("click", () => {
     marketTargetProjectId = "";
+    marketTargetEventId = "";
     packageReturnPage = "projects";
     showPackagePage();
   });
   els.exportProjectTimelineButton.addEventListener("click", () => {
     const project = projectById(currentProjectId);
     if (!project) return;
-    exportProjectTimeline(project);
+    openExportPreviewDialog(project);
   });
   els.backToProjectsButton.addEventListener("click", () => {
     marketTargetProjectId = "";
+    marketTargetEventId = "";
     if (currentPage === "project-detail") {
       showProjectsPage();
       return;
@@ -1586,6 +2352,7 @@
   });
   els.topbarBackIcon.addEventListener("click", () => {
     marketTargetProjectId = "";
+    marketTargetEventId = "";
     if (currentPage === "package" && packageReturnPage === "project-detail" && currentProjectId) {
       showProjectDetailPage(currentProjectId);
       return;
@@ -1593,33 +2360,51 @@
     showProjectsPage();
   });
   els.openProjectModalButton.addEventListener("click", openProjectModal);
-  els.shopForProjectTopButton.addEventListener("click", () => {
-    if (!currentProjectId) return;
-    marketTargetProjectId = currentProjectId;
-    packageReturnPage = "project-detail";
-    showPackagePage();
-  });
   els.closeProjectModalButton.addEventListener("click", closeProjectModal);
   els.cancelProjectModalButton.addEventListener("click", closeProjectModal);
+  els.closeProjectEventModalButton.addEventListener("click", closeProjectEventModal);
+  els.cancelProjectEventModalButton.addEventListener("click", closeProjectEventModal);
   els.cartButton.addEventListener("click", openCartDialog);
   els.closeCartButton.addEventListener("click", closeCartDialog);
   els.closeOperationDocButton.addEventListener("click", closeOperationDocDialog);
   els.cancelOperationDocButton.addEventListener("click", closeOperationDocDialog);
+  els.closeExportPreviewButton.addEventListener("click", closeExportPreviewDialog);
+  els.cancelExportPreviewButton.addEventListener("click", closeExportPreviewDialog);
   els.closeOperationDeleteButton.addEventListener("click", closeOperationDeleteDialog);
   els.cancelOperationDeleteButton.addEventListener("click", closeOperationDeleteDialog);
   els.confirmOperationDeleteButton.addEventListener("click", deletePendingTarget);
 
-  els.cartDialog.addEventListener("click", (event) => {
-    if (event.target === els.cartDialog) closeCartDialog();
-  });
-  els.projectModal.addEventListener("click", (event) => {
-    if (event.target === els.projectModal) closeProjectModal();
-  });
-  els.operationDocDialog.addEventListener("click", (event) => {
-    if (event.target === els.operationDocDialog) closeOperationDocDialog();
-  });
-  els.operationDeleteDialog.addEventListener("click", (event) => {
-    if (event.target === els.operationDeleteDialog) closeOperationDeleteDialog();
+  bindBackdropDismiss(els.cartDialog, closeCartDialog);
+  bindBackdropDismiss(els.projectModal, closeProjectModal);
+  bindBackdropDismiss(els.projectEventModal, closeProjectEventModal);
+  bindBackdropDismiss(els.operationDocDialog, closeOperationDocDialog);
+  bindBackdropDismiss(els.exportPreviewDialog, closeExportPreviewDialog);
+  bindBackdropDismiss(els.operationDeleteDialog, closeOperationDeleteDialog);
+
+  if (els.operationDocToolbar) {
+    els.operationDocToolbar.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-doc-format]");
+      if (!button) return;
+      formatOperationDocSelection(button.dataset.docFormat);
+    });
+  }
+
+  if (els.exportPreviewToolbar) {
+    els.exportPreviewToolbar.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-doc-format]");
+      if (!button) return;
+      formatExportPreviewSelection(button.dataset.docFormat);
+    });
+  }
+
+  els.operationDocContentInput.addEventListener("input", syncOperationDocPreview);
+  els.exportPreviewContentInput.addEventListener("input", syncExportPreview);
+
+  els.confirmExportPreviewButton.addEventListener("click", () => {
+    const project = projectById(pendingExportProjectId);
+    if (!project) return;
+    exportProjectTimeline(project, els.exportPreviewContentInput.value);
+    closeExportPreviewDialog();
   });
 
   els.operationDocForm.addEventListener("submit", (event) => {
@@ -1674,23 +2459,57 @@
     renderProjects();
   });
 
+  els.projectEventForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    const project = projectById(currentProjectId);
+    if (!project) return;
+    const created = createProjectEvent(project, {
+      type: els.projectEventTypeInput.value,
+      title: els.projectEventNameInput.value.trim(),
+    });
+    saveProjects();
+    selectedProjectEventId = created.id;
+    marketTargetEventId = created.id;
+    selectedDetailPackageName = "";
+    closeProjectEventModal();
+    renderProjectDetail(project);
+  });
+
   els.clearCartButton.addEventListener("click", () => {
     cartItems = [];
     saveCartItems();
     renderCart();
   });
 
+  els.cartProjectSelect.addEventListener("change", () => {
+    if (!marketTargetProjectId) {
+      marketTargetEventId = "";
+    }
+    renderEventOptions();
+    els.generateRecordButton.disabled = cartItems.length === 0 || projects.length === 0 || !els.cartEventSelect.value;
+  });
+
+  els.cartEventSelect.addEventListener("change", () => {
+    if (!marketTargetEventId) {
+      marketTargetEventId = els.cartEventSelect.value;
+    }
+    els.generateRecordButton.disabled = cartItems.length === 0 || projects.length === 0 || !els.cartEventSelect.value;
+  });
+
   els.generateRecordButton.addEventListener("click", () => {
     const projectId = marketTargetProjectId || els.cartProjectSelect.value;
     const project = projects.find((item) => item.id === projectId);
-    if (!project || cartItems.length === 0) return;
+    const eventId = marketTargetEventId || els.cartEventSelect.value;
+    if (!project || cartItems.length === 0 || !eventId) return;
 
     project.records.unshift({
       id: generateId("record"),
       title: `${cartItems.length} 项安装包操作`,
       items: cartItems,
+      eventId,
       createdAt: new Date().toISOString(),
     });
+    ensurePackageOperationSeed(project, eventId, cartItems);
     cartItems = [];
     saveProjects();
     saveCartItems();
@@ -1698,6 +2517,9 @@
     renderProjects();
     currentProjectId = project.id;
     marketTargetProjectId = project.id;
+    marketTargetEventId = eventId;
+    selectedProjectEventId = eventId;
+    selectedDetailPackageName = "";
     showProjectDetailPage(project.id);
   });
 

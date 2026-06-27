@@ -38,7 +38,6 @@
             <button id="marketButton" class="secondary-button" type="button">安装包市场</button>
             <button id="openProjectModalButton" class="primary-button" type="button">新增项目</button>
             <button id="exportProjectTimelineButton" class="secondary-button hidden" type="button">导出项目时间线</button>
-            <button id="shopForProjectTopButton" class="primary-button hidden" type="button">选购安装包</button>
             <button id="cartButton" class="secondary-button cart-button hidden" type="button">
               购物车
               <span id="cartCount" class="cart-count">0</span>
@@ -136,7 +135,7 @@
                 <h2 id="packageTitle"></h2>
               </div>
               <div class="detail-actions">
-                <button id="addPackageToCartButton" class="secondary-button primary-outline-button" type="button">添加到项目</button>
+                <button id="addPackageToCartButton" class="secondary-button primary-outline-button" type="button">添加到项目事件</button>
                 <button id="copyAllButton" class="secondary-button" type="button">复制全部下载链接</button>
               </div>
             </div>
@@ -198,9 +197,44 @@
               <span id="cartProjectLabelText">记录到项目</span>
               <select id="cartProjectSelect"></select>
             </label>
-            <button id="clearCartButton" class="secondary-button" type="button">清空购物车</button>
-            <button id="generateRecordButton" type="button">添加至项目</button>
+            <label>
+              <span id="cartEventLabelText">记录到事件</span>
+              <select id="cartEventSelect"></select>
+            </label>
+            <div class="cart-footer-actions">
+              <button id="clearCartButton" class="danger-button" type="button">清空购物车</button>
+              <button id="generateRecordButton" type="button">添加到项目事件</button>
+            </div>
           </div>
+        </section>
+      </div>
+
+      <div id="projectEventModal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="projectEventModalTitle">
+        <section class="project-modal">
+          <div class="modal-head">
+            <div>
+              <p class="eyebrow">new project event</p>
+              <h2 id="projectEventModalTitle">新增项目事件</h2>
+            </div>
+            <button id="closeProjectEventModalButton" class="icon-button" type="button" aria-label="关闭新增项目事件弹窗">×</button>
+          </div>
+          <form id="projectEventForm" class="project-form modal-form">
+            <label>
+              事件类型
+              <select id="projectEventTypeInput">
+                <option value="init">初始化安装</option>
+                <option value="upgrade">升级</option>
+              </select>
+            </label>
+            <label>
+              事件标题
+              <input id="projectEventNameInput" type="text" autocomplete="off" placeholder="例如：控制台升级到 v5.1.2-rc5" />
+            </label>
+            <div class="modal-actions">
+              <button id="cancelProjectEventModalButton" class="secondary-button" type="button">取消</button>
+              <button type="submit">创建事件</button>
+            </div>
+          </form>
         </section>
       </div>
 
@@ -218,16 +252,71 @@
               文档标题
               <input id="operationDocNameInput" type="text" autocomplete="off" placeholder="例如：升级前检查事项" />
             </label>
-            <label>
-              Markdown 内容
-              <textarea id="operationDocContentInput" rows="12" placeholder="支持 Markdown，例如：&#10;## 操作事项&#10;- 检查版本&#10;- 记录执行人"></textarea>
-            </label>
-            <p class="doc-form-hint">保存后会在对应操作区域生成一个可点击的文档链接。</p>
+            <div class="doc-editor-layout">
+              <section class="doc-editor-pane doc-surface-panel">
+                <div class="doc-editor-head">
+                  <label for="operationDocContentInput">Markdown 内容</label>
+                  <div id="operationDocToolbar" class="doc-toolbar" role="toolbar" aria-label="文档格式工具">
+                    <button type="button" class="secondary-button compact-button doc-toolbar-button" data-doc-format="highlight">高亮</button>
+                    <button type="button" class="secondary-button compact-button doc-toolbar-button" data-doc-format="inline-code">行内代码</button>
+                    <button type="button" class="secondary-button compact-button doc-toolbar-button" data-doc-format="code-block">代码块</button>
+                  </div>
+                </div>
+                <textarea id="operationDocContentInput" class="doc-editor-textarea" rows="16" placeholder="支持 Markdown，也可以先选中文本再用上方工具栏插入格式。&#10;&#10;例如：&#10;## 操作事项&#10;- 检查版本&#10;- 记录执行人&#10;&#10;```bash&#10;kubectl get pods -A&#10;```"></textarea>
+              </section>
+              <section class="doc-preview-panel doc-surface-panel" aria-live="polite">
+                <div class="doc-preview-head">
+                  <span>实时预览</span>
+                  <small>支持 Markdown，也支持工具栏一键插入格式</small>
+                </div>
+                <div id="operationDocPreview" class="markdown-preview"></div>
+              </section>
+            </div>
+            <p class="doc-form-hint">支持直接输入 Markdown，也可以先选中文字再点击上方工具栏。高亮会自动转成 <code>==内容==</code>，行内代码会转成 <code>`命令`</code>，代码块会自动插入三反引号围栏。</p>
             <div class="modal-actions">
               <button id="cancelOperationDocButton" class="secondary-button" type="button">取消</button>
               <button type="submit">保存文档</button>
             </div>
           </form>
+        </section>
+      </div>
+
+      <div id="exportPreviewDialog" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="exportPreviewTitle">
+        <section class="doc-modal">
+          <div class="modal-head">
+            <div>
+              <p class="eyebrow">export project timeline</p>
+              <h2 id="exportPreviewTitle">导出项目时间线</h2>
+            </div>
+            <button id="closeExportPreviewButton" class="icon-button" type="button" aria-label="关闭导出预览弹窗">×</button>
+          </div>
+          <div class="doc-form">
+            <p id="exportPreviewMeta" class="doc-form-hint">确认内容无误后，再点击右下角导出 Markdown 文件。</p>
+            <div class="doc-editor-layout">
+              <section class="doc-editor-pane doc-surface-panel">
+                <div class="doc-editor-head">
+                  <label for="exportPreviewContentInput">导出内容</label>
+                  <div id="exportPreviewToolbar" class="doc-toolbar" role="toolbar" aria-label="导出内容格式工具">
+                    <button type="button" class="secondary-button compact-button doc-toolbar-button" data-doc-format="highlight">高亮</button>
+                    <button type="button" class="secondary-button compact-button doc-toolbar-button" data-doc-format="inline-code">行内代码</button>
+                    <button type="button" class="secondary-button compact-button doc-toolbar-button" data-doc-format="code-block">代码块</button>
+                  </div>
+                </div>
+                <textarea id="exportPreviewContentInput" class="doc-editor-textarea" rows="16" placeholder="这里会展示导出的项目时间线 Markdown 内容。"></textarea>
+              </section>
+              <section class="doc-preview-panel doc-surface-panel" aria-live="polite">
+                <div class="doc-preview-head">
+                  <span>实时预览</span>
+                  <small>确认无误后再导出</small>
+                </div>
+                <div id="exportPreviewContentPreview" class="markdown-preview"></div>
+              </section>
+            </div>
+            <div class="modal-actions">
+              <button id="cancelExportPreviewButton" class="secondary-button" type="button">取消</button>
+              <button id="confirmExportPreviewButton" class="primary-button" type="button">确认导出</button>
+            </div>
+          </div>
         </section>
       </div>
 
