@@ -213,7 +213,7 @@
         <section class="project-modal">
           <div class="modal-head">
             <div>
-              <p class="eyebrow">new project event</p>
+              <p id="projectEventModalEyebrow" class="eyebrow">new project event</p>
               <h2 id="projectEventModalTitle">新增项目事件</h2>
             </div>
             <button id="closeProjectEventModalButton" class="icon-button" type="button" aria-label="关闭新增项目事件弹窗">×</button>
@@ -222,9 +222,11 @@
             <label>
               事件类型
               <select id="projectEventTypeInput">
+                <option value="" selected disabled>请选择事件类型</option>
                 <option value="init">初始化安装</option>
                 <option value="upgrade">升级</option>
               </select>
+              <p id="projectEventTypeError" class="error-text form-error-inline" aria-live="polite"></p>
             </label>
             <label>
               事件标题
@@ -232,7 +234,7 @@
             </label>
             <div class="modal-actions">
               <button id="cancelProjectEventModalButton" class="secondary-button" type="button">取消</button>
-              <button type="submit">创建事件</button>
+              <button id="submitProjectEventButton" type="submit">创建事件</button>
             </div>
           </form>
         </section>

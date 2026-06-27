@@ -44,8 +44,12 @@
     projectEventModal: document.getElementById("projectEventModal"),
     closeProjectEventModalButton: document.getElementById("closeProjectEventModalButton"),
     cancelProjectEventModalButton: document.getElementById("cancelProjectEventModalButton"),
+    projectEventModalEyebrow: document.getElementById("projectEventModalEyebrow"),
+    projectEventModalTitle: document.getElementById("projectEventModalTitle"),
     projectEventForm: document.getElementById("projectEventForm"),
     projectEventTypeInput: document.getElementById("projectEventTypeInput"),
+    projectEventTypeError: document.getElementById("projectEventTypeError"),
+    submitProjectEventButton: document.getElementById("submitProjectEventButton"),
     projectEventNameInput: document.getElementById("projectEventNameInput"),
     operationDocDialog: document.getElementById("operationDocDialog"),
     operationDocTitle: document.getElementById("operationDocTitle"),
@@ -107,6 +111,7 @@
   let selectedProjectEventId = "";
   let pendingOperationTarget = null;
   let pendingDeleteTarget = null;
+  let pendingProjectEventEditId = "";
   let pendingExportProjectId = "";
   const expandedGroups = new Set(["base"]);
   const customSelects = new Map();
@@ -165,6 +170,14 @@
 
   function closeProjectEventModal() {
     els.projectEventModal.classList.add("hidden");
+    pendingProjectEventEditId = "";
+  }
+
+  function setProjectEventTypeError(message = "") {
+    if (els.projectEventTypeError) {
+      els.projectEventTypeError.textContent = message;
+    }
+    els.projectEventTypeInput.closest(".custom-select")?.classList.toggle("is-invalid", Boolean(message));
   }
 
   function openProjectModal() {
@@ -174,11 +187,36 @@
 
   function openProjectEventModal() {
     if (!currentProjectId) return;
-    els.projectEventTypeInput.value = "upgrade";
+    pendingProjectEventEditId = "";
+    els.projectEventModalEyebrow.textContent = "new project event";
+    els.projectEventModalTitle.textContent = "新增项目事件";
+    els.submitProjectEventButton.textContent = "创建事件";
+    els.projectEventTypeInput.disabled = false;
+    els.projectEventTypeInput.value = "";
     els.projectEventNameInput.value = "";
+    setProjectEventTypeError("");
+    syncCustomSelect(els.projectEventTypeInput);
+    els.projectEventModal.classList.remove("hidden");
+    els.projectEventTypeInput.focus();
+  }
+
+  function openProjectEventRenameModal(eventId) {
+    const project = projectById(currentProjectId);
+    if (!project) return;
+    const event = eventById(project, eventId);
+    if (!event) return;
+    pendingProjectEventEditId = event.id;
+    els.projectEventModalEyebrow.textContent = "rename project event";
+    els.projectEventModalTitle.textContent = "重命名项目事件";
+    els.submitProjectEventButton.textContent = "保存事件";
+    els.projectEventTypeInput.disabled = true;
+    els.projectEventTypeInput.value = normalizeEventType(event.type);
+    els.projectEventNameInput.value = textValue(event.title, "");
+    setProjectEventTypeError("");
     syncCustomSelect(els.projectEventTypeInput);
     els.projectEventModal.classList.remove("hidden");
     els.projectEventNameInput.focus();
+    els.projectEventNameInput.select();
   }
 
   function showConsole() {
@@ -1424,6 +1462,33 @@
       renderProjectDetail(project);
       return;
     }
+    if (pendingDeleteTarget.kind === "package") {
+      const project = projectById(pendingDeleteTarget.projectId);
+      if (!project) return;
+      ensureProjectOperationShape(project);
+      const eventId = pendingDeleteTarget.eventId;
+      const packageName = textValue(pendingDeleteTarget.packageName, "未命名安装包");
+      project.records = (project.records || [])
+        .map((record) => {
+          if (record.eventId !== eventId) return record;
+          const nextItems = (record.items || []).filter((item) => textValue(item.packageName, "未命名安装包") !== packageName);
+          if (nextItems.length === 0) return null;
+          return {
+            ...record,
+            title: `${nextItems.length} 项安装包操作`,
+            items: nextItems,
+          };
+        })
+        .filter(Boolean);
+      if (project.eventPackageOperations?.[eventId] && typeof project.eventPackageOperations[eventId] === "object") {
+        delete project.eventPackageOperations[eventId][packageName];
+      }
+      selectedDetailPackageName = "";
+      saveProjects();
+      closeOperationDeleteDialog();
+      renderProjectDetail(project);
+      return;
+    }
     const resolved = findOperationTarget(pendingDeleteTarget);
     if (!resolved) return;
     resolved.operations = resolved.operations.filter((item) => item.id !== pendingDeleteTarget.operationId);
@@ -1511,13 +1576,22 @@
                 <strong>${escapeHtml(event.title)}</strong>
                 <span>${escapeHtml(eventTypeLabel(event.type))} · ${escapeHtml(formatDateTime(event.createdAt))}</span>
               </button>
-              <button
-                class="text-button danger project-event-delete-button"
-                type="button"
-                data-delete-project-event="${escapeAttribute(event.id)}"
-                aria-label="删除事件 ${escapeAttribute(event.title)}"
-                title="删除当前事件"
-              ><span class="trash-icon" aria-hidden="true"></span></button>
+              <div class="project-event-item-actions">
+                <button
+                  class="text-button project-event-edit-button"
+                  type="button"
+                  data-rename-project-event="${escapeAttribute(event.id)}"
+                  aria-label="重命名事件 ${escapeAttribute(event.title)}"
+                  title="重命名当前事件"
+                ><span class="edit-icon" aria-hidden="true"></span></button>
+                <button
+                  class="text-button danger project-event-delete-button"
+                  type="button"
+                  data-delete-project-event="${escapeAttribute(event.id)}"
+                  aria-label="删除事件 ${escapeAttribute(event.title)}"
+                  title="删除当前事件"
+                ><span class="trash-icon" aria-hidden="true"></span></button>
+              </div>
             </div>
           `).join("")}
         </div>
@@ -1790,6 +1864,7 @@
 
   function renderProjectDetail(project) {
     ensureProjectOperationShape(project);
+    els.topbarTitleMeta.textContent = `负责人：${project.owner} · ${project.records.length} 条记录`;
     const events = sortedProjectEvents(project);
 
     if (events.length === 0) {
@@ -1888,14 +1963,23 @@
               </div>
                 <div class="project-package-items">
                   ${groupedPackages.map((pkg) => `
-                    <button
-                      class="project-package-item${pkg.name === activePackage.name ? " active" : ""}"
-                      type="button"
-                      data-package-tab="${escapeAttribute(pkg.name)}"
-                    >
-                      <strong>${escapeHtml(pkg.name)}</strong>
-                      <span class="package-meta-text">${escapeHtml(packageRecordSummary(pkg) || `${pkg.items.length} 条记录`)}</span>
-                    </button>
+                    <div class="project-package-item${pkg.name === activePackage.name ? " active" : ""}">
+                      <button
+                        class="project-package-tab-button"
+                        type="button"
+                        data-package-tab="${escapeAttribute(pkg.name)}"
+                      >
+                        <strong>${escapeHtml(pkg.name)}</strong>
+                        <span class="package-meta-text">${escapeHtml(packageRecordSummary(pkg) || `${pkg.items.length} 条记录`)}</span>
+                      </button>
+                      <button
+                        class="text-button danger project-package-delete-button"
+                        type="button"
+                        data-delete-package="${escapeAttribute(pkg.name)}"
+                        aria-label="删除安装包 ${escapeAttribute(pkg.name)}"
+                        title="删除当前安装包"
+                      ><span class="trash-icon" aria-hidden="true"></span></button>
+                    </div>
                   `).join("")}
                 </div>
               </aside>
@@ -1944,6 +2028,11 @@
         renderProjectDetail(project);
       });
     }
+    for (const button of els.projectDetailContent.querySelectorAll("[data-rename-project-event]")) {
+      button.addEventListener("click", () => {
+        openProjectEventRenameModal(button.dataset.renameProjectEvent);
+      });
+    }
     for (const button of els.projectDetailContent.querySelectorAll("[data-shop-event-packages]")) {
       button.addEventListener("click", () => {
         marketTargetProjectId = project.id;
@@ -1960,6 +2049,22 @@
         els.operationDeleteEyebrow.textContent = "delete project event";
         els.operationDeleteTitle.textContent = "删除这个项目事件？";
         els.operationDeleteMessage.textContent = `即将删除事件「${textValue(event.title, "未命名事件")}」以及该事件下的安装包记录和文档，删除后不可恢复。`;
+        els.operationDeleteDialog.classList.remove("hidden");
+        els.confirmOperationDeleteButton.focus();
+      });
+    }
+    for (const button of els.projectDetailContent.querySelectorAll("[data-delete-package]")) {
+      button.addEventListener("click", () => {
+        const packageName = textValue(button.dataset.deletePackage, "未命名安装包");
+        pendingDeleteTarget = {
+          kind: "package",
+          projectId: project.id,
+          eventId: selectedProjectEventId,
+          packageName,
+        };
+        els.operationDeleteEyebrow.textContent = "delete package";
+        els.operationDeleteTitle.textContent = "删除这个安装包？";
+        els.operationDeleteMessage.textContent = `即将删除安装包「${packageName}」以及它在当前事件下的安装记录和文档，删除后不可恢复。`;
         els.operationDeleteDialog.classList.remove("hidden");
         els.confirmOperationDeleteButton.focus();
       });
@@ -2463,16 +2568,35 @@
     event.preventDefault();
     const project = projectById(currentProjectId);
     if (!project) return;
-    const created = createProjectEvent(project, {
-      type: els.projectEventTypeInput.value,
-      title: els.projectEventNameInput.value.trim(),
+    const selectedType = els.projectEventTypeInput.value;
+    if (!selectedType) {
+      setProjectEventTypeError(pendingProjectEventEditId ? "请选择事件类型后再保存事件。" : "请选择事件类型后再创建事件。");
+      els.projectEventTypeInput.focus();
+      return;
+    }
+    setProjectEventTypeError("");
+    const eventTitle = els.projectEventNameInput.value.trim();
+    const editingEvent = pendingProjectEventEditId ? eventById(project, pendingProjectEventEditId) : null;
+    const created = editingEvent || createProjectEvent(project, {
+      type: selectedType,
+      title: eventTitle,
     });
+    if (editingEvent) {
+      editingEvent.title = textValue(eventTitle, `${eventTypeLabel(selectedType)} · ${formatDateTime(editingEvent.createdAt)}`);
+      editingEvent.updatedAt = new Date().toISOString();
+    }
     saveProjects();
     selectedProjectEventId = created.id;
     marketTargetEventId = created.id;
     selectedDetailPackageName = "";
     closeProjectEventModal();
     renderProjectDetail(project);
+  });
+
+  els.projectEventTypeInput?.addEventListener("change", () => {
+    if (els.projectEventTypeInput.value) {
+      setProjectEventTypeError("");
+    }
   });
 
   els.clearCartButton.addEventListener("click", () => {
